@@ -68,11 +68,14 @@ def get_schedules(
         "message": "Schedules retrieved successfully",
         "schedules": [
             {
-                "id": schedule.id,
-                "title": schedule.title,
-                "description": schedule.description,
-                "start_time": schedule.start_time,
-                "end_time": schedule.end_time
+                
+"id": schedule.id,
+"title": schedule.title,
+"description": schedule.description,
+"start_time": schedule.start_time,
+"end_time": schedule.end_time,
+"task_id": schedule.task_id
+
             }
             for schedule in schedules
         ]

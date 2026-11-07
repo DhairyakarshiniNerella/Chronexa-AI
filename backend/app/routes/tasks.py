@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Task, User
+from models import Task, User, Schedule, Reminder
 from app.schemas.task import TaskCreate, TaskUpdate
 from app.auth_dependencies import get_current_user
 
@@ -25,40 +25,106 @@ def get_tasks(
                 "id": task.id,
                 "title": task.title,
                 "description": task.description,
-                "completed": task.status == "Completed"
+                "completed": task.status == "Completed",
+                "start_time": task.schedule.start_time if task.schedule else None
             }
+
             for task in tasks
         ]
     }
 
 
-# POST - Create a task
+# POST - Create task with automatic schedule and reminder
 @router.post("/tasks", status_code=201)
 def create_task(
     task: TaskCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    new_task = Task(
-        user_id=current_user.id,
-        title=task.title,
-        description=task.description,
-        status="Pending"
-    )
+    # Validate selected time
+    if task.end_time <= task.start_time:
+        raise HTTPException(
+            status_code=400,
+            detail="End time must be after start time"
+        )
 
-    db.add(new_task)
-    db.commit()
-    db.refresh(new_task)
+    # Check for schedule conflicts
+    conflict = db.query(Schedule).filter(
+        Schedule.user_id == current_user.id,
+        Schedule.start_time < task.end_time,
+        Schedule.end_time > task.start_time
+    ).first()
 
-    return {
-        "message": "Task created successfully",
-        "task": {
-            "id": new_task.id,
-            "title": new_task.title,
-            "description": new_task.description,
-            "completed": False
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=f"You already have a schedule during this time: {conflict.title}"
+        )
+
+    try:
+        # 1. Create task
+        new_task = Task(
+            user_id=current_user.id,
+            title=task.title,
+            description=task.description,
+            status="Pending"
+        )
+
+        db.add(new_task)
+        db.flush()
+
+        # 2. Automatically create schedule
+        new_schedule = Schedule(
+            user_id=current_user.id,
+            task_id=new_task.id,
+            title=task.title,
+            description=task.description,
+            start_time=task.start_time,
+            end_time=task.end_time
+        )
+
+        db.add(new_schedule)
+
+        # 3. Automatically create reminder
+        new_reminder = Reminder(
+            user_id=current_user.id,
+            task_id=new_task.id,
+            title=task.title,
+            description=task.description,
+            remind_at=task.start_time
+        )
+
+        db.add(new_reminder)
+
+        # Save everything together
+        db.commit()
+
+        db.refresh(new_task)
+        db.refresh(new_schedule)
+        db.refresh(new_reminder)
+
+        return {
+            "message": "Task, schedule and reminder created successfully",
+            "task": {
+                "id": new_task.id,
+                "title": new_task.title,
+                "description": new_task.description,
+                "completed": False
+            },
+            "schedule": {
+                "id": new_schedule.id,
+                "start_time": new_schedule.start_time,
+                "end_time": new_schedule.end_time
+            },
+            "reminder": {
+                "id": new_reminder.id,
+                "remind_at": new_reminder.remind_at
+            }
         }
-    }
+
+    except Exception:
+        db.rollback()
+        raise
 
 
 # PUT - Update a task

@@ -93,7 +93,19 @@ class Task(Base):
 
     owner = relationship("User", back_populates="tasks")
 
+    schedule = relationship(
+        "Schedule",
+        back_populates="task",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
 
+    reminder = relationship(
+        "Reminder",
+        back_populates="task",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
 # Note Model
 class Note(Base):
 
@@ -152,7 +164,14 @@ class Schedule(Base):
     )
 
     owner = relationship("User", back_populates="schedules")
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=True,
+        unique=True
+    )
 
+    task = relationship("Task", back_populates="schedule")
 
 # Reminder Model
 class Reminder(Base):
@@ -181,3 +200,11 @@ class Reminder(Base):
     )
 
     owner = relationship("User", back_populates="reminders")
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=True,
+        unique=True
+    )
+
+    task = relationship("Task", back_populates="reminder")

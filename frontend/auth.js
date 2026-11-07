@@ -1,4 +1,7 @@
-
+let showAllTasks = false;
+let showAllSchedules = false;
+let showAllReminders = false;
+let showAllNotes = false;
 // =============================================
 // CHRONEXA AI - CUSTOM TOAST NOTIFICATION SYSTEM
 // =============================================
@@ -204,6 +207,10 @@ if (loginForm) {
             // Save authentication token
             sessionStorage.setItem("access_token", data.access_token);
 
+            console.log(
+                "Login token saved:",
+                sessionStorage.getItem("access_token") ? "YES" : "NO"
+            );
             // Save success message before redirecting
             sessionStorage.setItem(
                 "chronexaToast",
@@ -248,7 +255,8 @@ if (dashboard) {
         // =====================================
 
         async function fetchDashboardData(endpoint) {
-
+            
+            const token = sessionStorage.getItem("access_token");
             const response = await fetch(`${API_URL}${endpoint}`, {
 
                 method: "GET",
@@ -397,17 +405,46 @@ async function loadTasks() {
             ? data
             : (data.tasks || data.items || []);
 
-        const taskCount = document.querySelector(".stat-purple h2");
+        // Update Dashboard Tasks Count
+        const dashboardTaskCount =
+            document.querySelector(".stat-purple h2");
 
-        if (taskCount) {
-            taskCount.textContent = String(tasks.length).padStart(2, "0");
+        if (dashboardTaskCount) {
+            dashboardTaskCount.textContent =
+                String(tasks.length).padStart(2, "0");
+        }
+
+        // Update Sidebar Tasks Count
+        const sidebarTaskCount =
+            document.getElementById("taskCount");
+
+        if (sidebarTaskCount) {
+            sidebarTaskCount.textContent = tasks.length;
         }
 
         if (!taskList) return;
 
-        taskList.innerHTML = "";
+taskList.innerHTML = "";
 
-        if (tasks.length === 0) {
+// View All Tasks button
+const viewAllTasksBtn = document.getElementById("viewAllTasksBtn");
+
+if (viewAllTasksBtn) {
+
+    viewAllTasksBtn.style.display =
+        tasks.length > 2 ? "inline-block" : "none";
+
+    viewAllTasksBtn.textContent = showAllTasks
+        ? "Show Less ↑"
+        : "View All Tasks →";
+
+    viewAllTasksBtn.onclick = function () {
+        showAllTasks = !showAllTasks;
+        loadTasks();
+    };
+}
+
+if (tasks.length === 0) {
 
             taskList.innerHTML = `
                 <div class="empty-state">
@@ -419,9 +456,53 @@ async function loadTasks() {
 
             return;
         }
+        // Get today's date
+const today = new Date();
+today.setHours(0, 0, 0, 0);
 
-        tasks.forEach(task => {
+// Separate today's and upcoming tasks
+const todayTasks = tasks.filter(task => {
+    if (!task.start_time) return false;
 
+    const taskDate = new Date(task.start_time);
+    taskDate.setHours(0, 0, 0, 0);
+
+    return taskDate.getTime() === today.getTime();
+});
+
+const upcomingTasks = tasks.filter(task => {
+    if (!task.start_time || task.completed) return false;
+
+    const taskDate = new Date(task.start_time);
+    taskDate.setHours(0, 0, 0, 0);
+
+    return taskDate > today;
+});
+
+// Sort tasks by start time
+todayTasks.sort((a, b) =>
+    new Date(a.start_time) - new Date(b.start_time)
+);
+
+upcomingTasks.sort((a, b) =>
+    new Date(a.start_time) - new Date(b.start_time)
+);
+
+// Keep today's tasks first, then upcoming tasks.
+// Use older unscheduled tasks only if space remains.
+const unscheduledTasks = tasks.filter(task =>
+    !task.start_time && !task.completed
+);
+const dashboardTasks = [
+    ...todayTasks,
+    ...upcomingTasks,
+    ...unscheduledTasks
+];
+
+const displayedTasks = showAllTasks
+    ? tasks
+    : dashboardTasks.slice(0, 2);
+    displayedTasks.forEach(task => {
             const item = document.createElement("div");
 
             item.style.padding = "16px";
@@ -560,7 +641,6 @@ async function loadTasks() {
 
 }
 
-
 // =============================================
 // CREATE OR EDIT TASK
 // =============================================
@@ -570,26 +650,47 @@ taskForm.addEventListener("submit", async function (event) {
     event.preventDefault();
 
     const title = taskTitleInput.value.trim();
-
     const description = taskDescriptionInput.value.trim();
 
+    const taskDate = document.getElementById("taskDate").value;
+    const startTime = document.getElementById("taskStartTime").value;
+    const endTime = document.getElementById("taskEndTime").value;
+
     if (!title) {
-
         showToast("Please enter a task title.", "error");
-
         return;
-
     }
 
-    const taskData = {
-        title: title,
-        description: description,
-        completed: false
-    };
+    const isEditing = editingTaskId !== null;
+
+    // Validate date and time when creating a new task
+    if (!isEditing) {
+
+        if (!taskDate || !startTime || !endTime) {
+            showToast("Please select date, start time and end time.", "error");
+            return;
+        }
+
+        if (endTime <= startTime) {
+            showToast("End time must be after start time.", "error");
+            return;
+        }
+    }
+
+    const taskData = isEditing
+        ? {
+            title: title,
+            description: description,
+            completed: false
+        }
+        : {
+            title: title,
+            description: description,
+            start_time: `${taskDate}T${startTime}:00`,
+            end_time: `${taskDate}T${endTime}:00`
+        };
 
     try {
-
-        const isEditing = editingTaskId !== null;
 
         const url = isEditing
             ? `${API_URL}/tasks/${editingTaskId}`
@@ -619,7 +720,7 @@ taskForm.addEventListener("submit", async function (event) {
         showToast(
             isEditing
                 ? "Task updated successfully!"
-                : "Task created successfully!"
+                : "Task, schedule and reminder created successfully!"
         );
 
         await loadTasks();
@@ -633,6 +734,7 @@ taskForm.addEventListener("submit", async function (event) {
     }
 
 });
+
 
 
 // =============================================
@@ -825,14 +927,20 @@ scheduleModal.addEventListener("click", function (event) {
 // LOAD AND DISPLAY SCHEDULES
 // =============================================
 
+
 async function loadSchedules() {
 
     const scheduleList = document.querySelector(".schedule-list");
 
     try {
 
-        const schedules = await fetchDashboardData("/schedules");
+        const response = await fetchDashboardData("/schedules");
 
+        const schedules = Array.isArray(response)
+            ? response
+            : (response.schedules || []);
+
+        // Update Dashboard Schedules Count
         const scheduleCount = document.querySelector(".stat-blue h2");
 
         if (scheduleCount) {
@@ -840,12 +948,41 @@ async function loadSchedules() {
                 String(schedules.length).padStart(2, "0");
         }
 
+        // Update Sidebar Schedules Count
+        const sidebarScheduleCount =
+            document.getElementById("scheduleCount");
+
+        if (sidebarScheduleCount) {
+            sidebarScheduleCount.textContent = schedules.length;
+        }
+
         if (!scheduleList) return;
 
         scheduleList.innerHTML = "";
 
-        // Empty schedule message
+        // View All Schedules Button
+        const viewAllBtn =
+            document.getElementById("viewAllSchedulesBtn");
 
+        if (viewAllBtn) {
+
+            viewAllBtn.style.display =
+                schedules.length > 2 ? "inline-block" : "none";
+
+            viewAllBtn.textContent = showAllSchedules
+                ? "Show Less ↑"
+                : "View All Schedules →";
+
+            viewAllBtn.onclick = function () {
+
+                showAllSchedules = !showAllSchedules;
+
+                loadSchedules();
+
+            };
+        }
+
+        // Empty Schedule Message
         if (schedules.length === 0) {
 
             scheduleList.innerHTML = `
@@ -868,8 +1005,58 @@ async function loadSchedules() {
             return;
         }
 
-        // Add Schedule button
+        // Get today's date
+        const today = new Date();
 
+        today.setHours(0, 0, 0, 0);
+
+        // Today's schedules
+        const todaySchedules = schedules.filter(schedule => {
+
+            if (!schedule.start_time) return false;
+
+            const scheduleDate = new Date(schedule.start_time);
+
+            scheduleDate.setHours(0, 0, 0, 0);
+
+            return scheduleDate.getTime() === today.getTime();
+
+        });
+
+        // Upcoming schedules
+        const upcomingSchedules = schedules.filter(schedule => {
+
+            if (!schedule.start_time) return false;
+
+            const scheduleDate = new Date(schedule.start_time);
+
+            scheduleDate.setHours(0, 0, 0, 0);
+
+            return scheduleDate > today;
+
+        });
+
+        // Sort by starting time
+        todaySchedules.sort((a, b) =>
+            new Date(a.start_time) - new Date(b.start_time)
+        );
+
+        upcomingSchedules.sort((a, b) =>
+            new Date(a.start_time) - new Date(b.start_time)
+        );
+
+        // Combine today's and upcoming schedules
+        const dashboardSchedules = [
+            ...todaySchedules,
+            ...upcomingSchedules
+        ];
+
+        // Decide how many schedules to display
+        const displayedSchedules = showAllSchedules
+            ? schedules
+            : dashboardSchedules.slice(0, 2);
+
+        // Add Schedule Button
         const addButton = document.createElement("button");
 
         addButton.type = "button";
@@ -878,10 +1065,8 @@ async function loadSchedules() {
 
         scheduleList.appendChild(addButton);
 
-
-        // Display schedules
-
-        schedules.forEach(schedule => {
+        // Display Schedules
+        displayedSchedules.forEach(schedule => {
 
             const item = document.createElement("div");
 
@@ -891,11 +1076,13 @@ async function loadSchedules() {
             item.style.background = "#f0f6ff";
             item.style.border = "1px solid #e0eaff";
 
+            // Schedule Title
             const title = document.createElement("h4");
 
             title.textContent =
                 schedule.title || "Untitled schedule";
 
+            // Schedule Description
             const description = document.createElement("p");
 
             description.textContent =
@@ -903,7 +1090,7 @@ async function loadSchedules() {
 
             description.style.margin = "8px 0";
 
-
+            // Start Time
             const startDate = document.createElement("small");
 
             startDate.textContent =
@@ -912,7 +1099,7 @@ async function loadSchedules() {
 
             startDate.style.display = "block";
 
-
+            // End Time
             const endDate = document.createElement("small");
 
             endDate.textContent =
@@ -921,27 +1108,22 @@ async function loadSchedules() {
 
             endDate.style.display = "block";
 
-
-            // Action buttons
-
+            // Action Buttons
             const actions = document.createElement("div");
 
             actions.style.display = "flex";
             actions.style.gap = "8px";
             actions.style.marginTop = "12px";
 
-
             const editButton = document.createElement("button");
 
             editButton.type = "button";
             editButton.textContent = "Edit";
 
-
             const deleteButton = document.createElement("button");
 
             deleteButton.type = "button";
             deleteButton.textContent = "Delete";
-
 
             [editButton, deleteButton].forEach(button => {
 
@@ -959,24 +1141,19 @@ async function loadSchedules() {
             deleteButton.style.background = "#ffe8ed";
             deleteButton.style.color = "#d13c61";
 
-
-            // Edit schedule
-
+            // Edit Schedule
             editButton.addEventListener("click", function () {
 
                 openEditSchedule(schedule);
 
             });
 
-
-            // Delete schedule
-
+            // Delete Schedule
             deleteButton.addEventListener("click", function () {
 
                 deleteSchedule(schedule.id);
 
             });
-
 
             actions.appendChild(editButton);
             actions.appendChild(deleteButton);
@@ -1000,7 +1177,6 @@ async function loadSchedules() {
     }
 
 }
-
 
 // =============================================
 // CREATE OR EDIT SCHEDULE
@@ -1273,19 +1449,44 @@ async function loadNotes() {
 
     try {
 
-        const notes = await fetchDashboardData("/notes");
+        const response = await fetchDashboardData("/notes");
 
-        const noteCount = document.querySelector(".stat-pink h2");
+        const notes = Array.isArray(response)
+            ? response
+            : (response.notes || []);
+
+        // Update note count
+        const noteCount =
+            document.querySelector(".stat-pink h2");
 
         if (noteCount) {
-
             noteCount.textContent =
                 String(notes.length).padStart(2, "0");
-
         }
 
         if (!notesCard) return;
 
+        // Sort by latest updated date
+        const sortedNotes = [...notes].sort((a, b) => {
+
+            const dateA = new Date(
+                a.updated_at || a.created_at || 0
+            );
+
+            const dateB = new Date(
+                b.updated_at || b.created_at || 0
+            );
+
+            return dateB - dateA;
+
+        });
+
+        // Select two or all notes
+        const displayedNotes = showAllNotes
+            ? sortedNotes
+            : sortedNotes.slice(0, 2);
+
+        // Remove old note list
         const oldList = notesCard.querySelector(".note-list");
 
         if (oldList) oldList.remove();
@@ -1294,6 +1495,25 @@ async function loadNotes() {
 
         noteList.className = "note-list";
 
+        // View All button
+        const viewAllBtn =
+            document.getElementById("viewAllNotesBtn");
+
+        if (viewAllBtn) {
+
+            viewAllBtn.style.display =
+                notes.length > 2 ? "inline-block" : "none";
+
+            viewAllBtn.textContent = showAllNotes
+                ? "Show Less ↑"
+                : "View All Notes →";
+
+            viewAllBtn.onclick = function () {
+                showAllNotes = !showAllNotes;
+                loadNotes();
+            };
+        }
+
         if (notes.length === 0) {
 
             noteList.innerHTML = `
@@ -1301,15 +1521,13 @@ async function loadNotes() {
                     <span>✎</span>
                     <p>No notes available yet.</p>
 
-                    <button class="small-create-btn note-create-btn">
-                        + Add a note
-                    </button>
+                    
                 </div>
             `;
 
         } else {
 
-            notes.forEach(note => {
+            displayedNotes.forEach(note => {
 
                 const item = document.createElement("div");
 
@@ -1319,22 +1537,28 @@ async function loadNotes() {
                 item.style.borderRadius = "12px";
 
                 const title = document.createElement("h4");
-                title.textContent = note.title || "Untitled note";
+
+                title.textContent =
+                    note.title || "Untitled note";
 
                 const content = document.createElement("p");
-                content.textContent = note.content || "No content";
+
+                content.textContent =
+                    note.content || "No content";
 
                 const actions = document.createElement("div");
+
                 actions.style.display = "flex";
                 actions.style.gap = "10px";
                 actions.style.marginTop = "12px";
 
                 const editBtn = document.createElement("button");
+
                 editBtn.type = "button";
                 editBtn.textContent = "Edit";
                 editBtn.className = "small-create-btn";
 
-                editBtn.addEventListener("click", function() {
+                editBtn.addEventListener("click", function () {
 
                     editingNoteId = note.id;
 
@@ -1349,16 +1573,16 @@ async function loadNotes() {
                 });
 
                 const deleteBtn = document.createElement("button");
+
                 deleteBtn.type = "button";
                 deleteBtn.textContent = "Delete";
                 deleteBtn.className = "small-create-btn";
+
                 deleteBtn.style.background = "#ffe8ed";
                 deleteBtn.style.color = "#c0395a";
 
-                deleteBtn.addEventListener("click", function() {
-
+                deleteBtn.addEventListener("click", function () {
                     deleteNote(note.id);
-
                 });
 
                 actions.appendChild(editBtn);
@@ -1372,17 +1596,13 @@ async function loadNotes() {
 
             });
 
-            const addButton = document.createElement("button");
-
-            addButton.type = "button";
-            addButton.className = "small-create-btn note-create-btn";
-            addButton.textContent = "+ Add a note";
-
-            noteList.appendChild(addButton);
-
         }
 
-        notesCard.appendChild(noteList);
+        // Add note button
+        
+
+        // Put the list before View All
+        notesCard.insertBefore(noteList, viewAllBtn);
 
     } catch (error) {
 
@@ -1391,8 +1611,6 @@ async function loadNotes() {
     }
 
 }
-
-
 // SAVE OR UPDATE NOTE
 noteForm.addEventListener("submit", async function(event) {
 
@@ -1509,27 +1727,47 @@ async function loadReminders() {
 
     try {
 
-        const reminders =
-            await fetchDashboardData("/reminders");
+        const response = await fetchDashboardData("/reminders");
 
-        // Update reminder count
-        const reminderCount =
-            document.querySelector(".stat-orange h2");
+        const reminders = Array.isArray(response)
+            ? response
+            : (response.reminders || []);
+
+        // Update Dashboard Reminder Count
+        const reminderCount = document.querySelector(".stat-orange h2");
 
         if (reminderCount) {
             reminderCount.textContent =
                 String(reminders.length).padStart(2, "0");
         }
 
-        // Display reminders
+        // Update Sidebar Reminder Count
+        const sidebarReminderCount =
+            document.getElementById("reminderCount");
+
+        if (sidebarReminderCount) {
+            sidebarReminderCount.textContent = reminders.length;
+        }
+
+        const reminderCard =
+            document.querySelector(".reminders-card");
+
         const reminderList =
             document.querySelector(".reminder-list");
 
-        if (!reminderList) return;
+        const viewAllBtn =
+            document.getElementById("viewAllRemindersBtn");
+
+        if (!reminderCard || !reminderList) return;
+
+        // Always position View All below the reminder list
+        if (viewAllBtn) {
+            reminderList.insertAdjacentElement("afterend", viewAllBtn);
+        }
 
         reminderList.innerHTML = "";
 
-        // Empty state
+        // Empty State
         if (reminders.length === 0) {
 
             reminderList.innerHTML = `
@@ -1537,29 +1775,97 @@ async function loadReminders() {
                     <div class="empty-state-icon">♧</div>
                     <h4>No reminders yet</h4>
                     <p>Your upcoming reminders will appear here.</p>
-                    <button class="small-create-btn reminder-create-btn">
-                        + Create a reminder
-                    </button>
                 </div>
             `;
+
+            if (viewAllBtn) {
+                viewAllBtn.style.display = "none";
+            }
 
             return;
         }
 
-        // Display reminder cards
-        reminders.forEach(reminder => {
+        // Get today's date
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-            const reminderCard =
-                document.createElement("div");
+        // Today's reminders
+        const todayReminders = reminders.filter(reminder => {
+
+            if (!reminder.remind_at) return false;
+
+            const date = new Date(reminder.remind_at);
+            date.setHours(0, 0, 0, 0);
+
+            return date.getTime() === today.getTime();
+
+        });
+
+        // Upcoming reminders
+        const upcomingReminders = reminders.filter(reminder => {
+
+            if (!reminder.remind_at) return false;
+
+            const date = new Date(reminder.remind_at);
+            date.setHours(0, 0, 0, 0);
+
+            return date > today;
+
+        });
+
+        // Sort by reminder date and time
+        todayReminders.sort((a, b) =>
+            new Date(a.remind_at) - new Date(b.remind_at)
+        );
+
+        upcomingReminders.sort((a, b) =>
+            new Date(a.remind_at) - new Date(b.remind_at)
+        );
+
+        // Today's reminders first, then upcoming reminders
+        const dashboardReminders = [
+            ...todayReminders,
+            ...upcomingReminders
+        ];
+
+        // Show all or only top 2
+        const displayedReminders = showAllReminders
+            ? reminders
+            : dashboardReminders.slice(0, 2);
+
+        // View All Button
+        if (viewAllBtn) {
+
+            viewAllBtn.style.display =
+                reminders.length > 2 ? "block" : "none";
+
+            viewAllBtn.textContent = showAllReminders
+                ? "Show Less ↑"
+                : "View All Reminders →";
+
+            viewAllBtn.onclick = function () {
+
+                showAllReminders = !showAllReminders;
+
+                loadReminders();
+
+            };
+        }
+
+        // Display Reminder Cards
+        displayedReminders.forEach(reminder => {
+
+            const reminderCard = document.createElement("div");
 
             reminderCard.className = "reminder-item";
 
-            const reminderDate =
-                new Date(reminder.remind_at).toLocaleString();
+            const reminderDate = reminder.remind_at
+                ? new Date(reminder.remind_at).toLocaleString()
+                : "No date set";
 
             reminderCard.innerHTML = `
                 <div class="reminder-details">
-                    <h4>${reminder.title}</h4>
+                    <h4>${reminder.title || "Untitled reminder"}</h4>
                     <p>${reminder.description || ""}</p>
                     <span>⏰ ${reminderDate}</span>
                 </div>
@@ -1588,6 +1894,8 @@ async function loadReminders() {
     }
 
 }
+
+
         // =====================================
         // REMINDER MANAGEMENT
         // =====================================
@@ -1952,8 +2260,7 @@ startReminderNotifications();
 const aiChatInput = document.getElementById("aiChatInput");
 const aiChatMessages = document.getElementById("aiChatMessages");
 const aiSendBtn = document.getElementById("aiSendBtn");
-
-function sendAIChatMessage() {
+async function sendAIChatMessage() {
 
     if (!aiChatInput || !aiChatMessages) {
         return;
@@ -1965,44 +2272,533 @@ function sendAIChatMessage() {
         return;
     }
 
+    const token = sessionStorage.getItem("access_token");
+
+    if (!token) {
+        alert("Please log in to use Chronexa AI.");
+        return;
+    }
+
     // Display user message
     const userMessage = document.createElement("div");
-
     userMessage.className = "ai-message ai-message-user";
     userMessage.textContent = message;
 
     aiChatMessages.appendChild(userMessage);
 
-    // Clear input
     aiChatInput.value = "";
 
-    // Temporary response until AI backend is connected
+    // Display thinking message
     const botMessage = document.createElement("div");
-
     botMessage.className = "ai-message ai-message-bot";
-    botMessage.textContent =
-        "Thanks for your message! My AI connection is coming soon.";
+    botMessage.textContent = "Chronexa AI is thinking...";
 
     aiChatMessages.appendChild(botMessage);
 
-    // Scroll to latest message
     aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+
+    aiSendBtn.disabled = true;
+
+    try {
+
+        const response = await fetch(`${API_URL}/ai/chat`, {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+
+            body: JSON.stringify({
+                message: message
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || "Unable to get an AI response.");
+        }
+
+        // Display actual AI response
+        botMessage.textContent = data.reply;
+
+    } catch (error) {
+
+        console.error("Chronexa AI Error:", error);
+
+        botMessage.textContent =
+            "Sorry, I couldn't process your message. Please try again.";
+
+    } finally {
+
+        aiSendBtn.disabled = false;
+
+        aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+
+    }
 }
-
-
-// Send button
+// Send button click event
 if (aiSendBtn) {
     aiSendBtn.addEventListener("click", sendAIChatMessage);
 }
 
-
-// Enter key
+// Enter key event
 if (aiChatInput) {
     aiChatInput.addEventListener("keydown", function(event) {
-
         if (event.key === "Enter") {
             sendAIChatMessage();
         }
-
     });
 }
+// =============================================
+// CHRONEXA AI - SIDEBAR NAVIGATION
+// =============================================
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const sidebarLinks = document.querySelectorAll(
+        ".sidebar .nav-link"
+    );
+
+    const sidebarTargets = {
+        "Overview": ".welcome-section",
+        "My Tasks": ".tasks-card",
+        "Schedules": ".schedule-card",
+        "My Notes": ".notes-card",
+        "Reminders": ".reminders-card",
+        "AI Assistant": "#aiAssistant"
+    };
+
+    // Handle sidebar navigation
+    sidebarLinks.forEach(function (link) {
+
+        link.addEventListener("click", function (event) {
+
+            event.preventDefault();
+
+            const labelElement = link.querySelector(
+                "span:nth-child(2)"
+            );
+
+            const label = labelElement
+                ? labelElement.textContent.trim()
+                : "";
+
+            // Settings is not implemented yet
+            if (label === "Settings") {
+                showToast(
+                    "Settings will be available in a future update."
+                );
+                return;
+            }
+
+            const targetSelector = sidebarTargets[label];
+
+            const target = targetSelector
+                ? document.querySelector(targetSelector)
+                : null;
+
+            if (!target) {
+                showToast(
+                    "This section is not available yet.",
+                    "error"
+                );
+                return;
+            }
+
+            // Scroll to the selected section
+            target.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+
+            // Update active sidebar item
+            sidebarLinks.forEach(function (item) {
+                item.classList.remove("active");
+            });
+
+            link.classList.add("active");
+
+            // Update breadcrumb
+            const breadcrumbTitle = document.querySelector(
+                ".breadcrumb strong"
+            );
+
+            if (breadcrumbTitle) {
+                breadcrumbTitle.textContent = label;
+            }
+
+        });
+
+    });
+
+    // Explore AI button
+    const exploreAIButton = document.querySelector(
+        ".upgrade-btn"
+    );
+
+    const aiAssistant = document.getElementById(
+        "aiAssistant"
+    );
+
+    if (exploreAIButton && aiAssistant) {
+
+        exploreAIButton.addEventListener("click", function () {
+
+            aiAssistant.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+
+            const aiLink = Array.from(sidebarLinks).find(
+                function (link) {
+
+                    const label = link.querySelector(
+                        "span:nth-child(2)"
+                    );
+
+                    return label &&
+                        label.textContent.trim() === "AI Assistant";
+                }
+            );
+
+            if (aiLink) {
+
+                sidebarLinks.forEach(function (item) {
+                    item.classList.remove("active");
+                });
+
+                aiLink.classList.add("active");
+            }
+
+        });
+
+    }
+
+});
+
+
+// =========================================
+// CHRONEXA AI - CALENDAR FUNCTIONALITY
+// =========================================
+
+let calendarCurrentDate = new Date();
+let calendarSelectedDate = null;
+let calendarSchedules = [];
+
+
+async function loadCalendarSchedules() {
+
+    try {
+
+        const token = sessionStorage.getItem("access_token");
+
+        const response = await fetch(`${API_URL}/schedules`, {
+
+            method: "GET",
+
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.detail || "Unable to load schedules"
+            );
+        }
+
+        calendarSchedules = Array.isArray(data)
+            ? data
+            : (Array.isArray(data.schedules)
+                ? data.schedules
+                : []);
+
+        console.log("Calendar schedules loaded:", calendarSchedules);
+
+        renderCalendar();
+
+        if (calendarSelectedDate) {
+            showCalendarEvents(calendarSelectedDate);
+        }
+
+    } catch (error) {
+
+        console.error("Calendar loading error:", error);
+
+        showToast("Unable to load calendar schedules.", "error");
+
+    }
+
+}
+
+function renderCalendar() {
+
+    const calendarDays = document.getElementById("calendarDays");
+    const monthYear = document.getElementById("calendarMonthYear");
+
+    if (!calendarDays || !monthYear) return;
+
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    monthYear.textContent = calendarCurrentDate.toLocaleDateString(
+        "en-US",
+        {
+            month: "long",
+            year: "numeric"
+        }
+    );
+
+    calendarDays.innerHTML = "";
+
+    // Empty spaces before the first date
+
+    for (let i = 0; i < firstDay; i++) {
+
+        const emptyDay = document.createElement("div");
+
+        emptyDay.className = "calendar-day empty";
+
+        calendarDays.appendChild(emptyDay);
+
+    }
+
+    const today = new Date();
+
+    // Generate calendar dates
+
+    for (let day = 1; day <= totalDays; day++) {
+
+        const date = new Date(year, month, day);
+
+        const dateKey = [
+            year,
+            String(month + 1).padStart(2, "0"),
+            String(day).padStart(2, "0")
+        ].join("-");
+
+        const dayButton = document.createElement("button");
+
+        dayButton.type = "button";
+        dayButton.className = "calendar-day";
+        dayButton.textContent = day;
+
+        const hasEvents = calendarSchedules.some(schedule => {
+
+            const scheduleDate = new Date(schedule.start_time);
+
+            return (
+                scheduleDate.getFullYear() === year &&
+                scheduleDate.getMonth() === month &&
+                scheduleDate.getDate() === day
+            );
+
+        });
+
+        if (hasEvents) {
+            dayButton.classList.add("has-events");
+        }
+
+        if (
+            today.getFullYear() === year &&
+            today.getMonth() === month &&
+            today.getDate() === day
+        ) {
+            dayButton.classList.add("today");
+        }
+
+        if (calendarSelectedDate === dateKey) {
+            dayButton.classList.add("selected");
+        }
+
+        dayButton.addEventListener("click", function () {
+
+            calendarSelectedDate = dateKey;
+
+            renderCalendar();
+
+            showCalendarEvents(dateKey);
+
+        });
+
+        calendarDays.appendChild(dayButton);
+
+    }
+
+}
+
+
+function showCalendarEvents(dateKey) {
+
+    const eventsContainer = document.getElementById("calendarEvents");
+    const selectedTitle = document.getElementById("selectedDateTitle");
+
+    if (!eventsContainer || !selectedTitle) return;
+
+    const selectedDate = new Date(dateKey + "T00:00:00");
+
+    selectedTitle.textContent = selectedDate.toLocaleDateString(
+        "en-US",
+        {
+            day: "numeric",
+            month: "long",
+            year: "numeric"
+        }
+    );
+
+    const events = calendarSchedules.filter(schedule => {
+
+        const scheduleDate = new Date(schedule.start_time);
+
+        return (
+            scheduleDate.getFullYear() === selectedDate.getFullYear() &&
+            scheduleDate.getMonth() === selectedDate.getMonth() &&
+            scheduleDate.getDate() === selectedDate.getDate()
+        );
+
+    });
+
+    eventsContainer.innerHTML = "";
+
+    if (events.length === 0) {
+
+        eventsContainer.textContent = "No activities scheduled for this date.";
+
+        return;
+
+    }
+
+    events.forEach(schedule => {
+
+        const eventItem = document.createElement("div");
+
+        const isTask = schedule.task_id !== null &&
+                       schedule.task_id !== undefined;
+
+        eventItem.style.padding = "12px";
+        eventItem.style.marginBottom = "10px";
+        eventItem.style.background = isTask ? "#f0eaff" : "#e8f4ff";
+        eventItem.style.borderLeft = isTask
+            ? "4px solid #8b5cf6"
+            : "4px solid #36a4df";
+        eventItem.style.borderRadius = "10px";
+
+        const title = document.createElement("strong");
+
+        title.textContent = schedule.title || "Untitled schedule";
+
+        const type = document.createElement("small");
+
+        type.textContent = isTask ? "Task" : "Manual Schedule";
+        type.style.display = "block";
+        type.style.marginTop = "5px";
+        type.style.color = isTask ? "#8b5cf6" : "#2588c5";
+
+        const time = document.createElement("p");
+
+        time.style.marginTop = "6px";
+
+        time.textContent =
+            new Date(schedule.start_time).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+            }) +
+            " - " +
+            new Date(schedule.end_time).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+
+        eventItem.appendChild(title);
+        eventItem.appendChild(type);
+        eventItem.appendChild(time);
+
+        eventsContainer.appendChild(eventItem);
+
+    });
+
+}
+
+
+// Previous month
+
+document.getElementById("previousMonth")?.addEventListener("click", function () {
+
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() - 1);
+
+    renderCalendar();
+
+});
+
+
+// Next month
+
+document.getElementById("nextMonth")?.addEventListener("click", function () {
+
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + 1);
+
+    renderCalendar();
+
+});
+
+document.getElementById("todayButton")?.addEventListener("click", function () {
+
+    calendarCurrentDate = new Date();
+
+    const today = new Date();
+
+    calendarSelectedDate =
+        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+    renderCalendar();
+
+    showCalendarEvents(calendarSelectedDate);
+
+});
+
+
+
+// Open calendar
+
+document.getElementById("viewCalendarBtn")?.addEventListener("click", async function () {
+
+    const calendarSection = document.getElementById("calendarSection");
+
+    if (!calendarSection) return;
+
+    calendarSection.style.display = "block";
+
+    calendarSection.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
+
+    await loadCalendarSchedules();
+
+});
+
+
+// Back to dashboard
+
+document.getElementById("backToDashboard")?.addEventListener("click", function () {
+
+    const calendarSection = document.getElementById("calendarSection");
+
+    if (calendarSection) {
+        calendarSection.style.display = "none";
+    }
+
+    window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+    });
+
+});
