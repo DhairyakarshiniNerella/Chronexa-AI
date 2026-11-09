@@ -2872,3 +2872,479 @@ a {
         flex: 1;
     }
 }
+
+/* =========================================
+   CHRONEXA AI - PREMIUM WELCOME HERO CARD
+========================================= */
+
+.hero-card {
+    position: relative;
+    width: 100%;
+    min-height: 350px;
+    padding: 42px 48px;
+    margin: 15px 0 30px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 30px;
+
+    overflow: hidden;
+    border-radius: 26px;
+
+    background:
+        radial-gradient(
+            circle at 85% 15%,
+            rgba(255,255,255,0.8),
+            transparent 28%
+        ),
+        linear-gradient(
+            120deg,
+            #f0eaff 0%,
+            #f8efff 48%,
+            #fceafa 100%
+        );
+
+    border: 1px solid rgba(255,255,255,0.9);
+
+    box-shadow:
+        0 12px 35px rgba(111, 76, 180, 0.09),
+        inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+
+/* LEFT CONTENT */
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    max-width: 550px;
+}
+
+.hero-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+
+    padding: 9px 15px;
+    margin-bottom: 18px;
+
+    background: rgba(255,255,255,0.65);
+    border: 1px solid rgba(130,95,220,0.12);
+    border-radius: 30px;
+
+    color: #7654c9;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+}
+
+.hero-label-icon {
+    color: #9666ef;
+    font-size: 16px;
+}
+
+.hero-content h1 {
+    margin: 0;
+    font-size: clamp(32px, 4vw, 43px);
+    font-weight: 800;
+    letter-spacing: -1.8px;
+    color: #252044;
+}
+
+.hero-sparkle {
+    color: #8759ee;
+    font-size: 34px;
+    margin-left: 5px;
+}
+
+.hero-description {
+    margin: 14px 0 23px;
+    max-width: 420px;
+
+    color: #827b9f;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+
+/* PRODUCTIVITY HIGHLIGHTS */
+
+.hero-highlights {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 17px;
+
+    margin-bottom: 27px;
+}
+
+.hero-highlight {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    color: #655b86;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.highlight-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 21px;
+    height: 21px;
+
+    border-radius: 50%;
+    background: #e5d9ff;
+    color: #7951d6;
+    font-size: 12px;
+}
+
+
+/* ACTION BUTTONS */
+
+.hero-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.hero-secondary-btn,
+.hero-primary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    padding: 13px 21px;
+    border-radius: 12px;
+
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.hero-secondary-btn {
+    color: #69528e;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid #e9defc;
+}
+
+.hero-primary-btn {
+    color: white;
+    background: linear-gradient(
+        135deg,
+        #7955e9,
+        #a06aef
+    );
+
+    border: none;
+    box-shadow: 0 7px 17px rgba(126,82,222,0.2);
+}
+
+.hero-secondary-btn:hover,
+.hero-primary-btn:hover {
+    transform: translateY(-3px);
+}
+
+.hero-primary-btn:hover {
+    box-shadow: 0 10px 22px rgba(126,82,222,0.3);
+}
+
+
+/* RIGHT ILLUSTRATION */
+
+.hero-illustration {
+    position: relative;
+    width: 370px;
+    min-width: 300px;
+    height: 260px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hero-orbit {
+    position: absolute;
+    border: 1px solid rgba(143,105,218,0.13);
+    border-radius: 50%;
+}
+
+.orbit-one {
+    width: 300px;
+    height: 300px;
+}
+
+.orbit-two {
+    width: 240px;
+    height: 240px;
+}
+
+
+/* CALENDAR CARD */
+
+.hero-calendar-card {
+    position: relative;
+    z-index: 2;
+
+    width: 275px;
+    padding: 19px;
+
+    border-radius: 19px;
+
+    background: rgba(255,255,255,0.91);
+
+    border: 1px solid rgba(255,255,255,0.95);
+
+    box-shadow:
+        0 16px 40px rgba(91,66,150,0.14),
+        0 3px 8px rgba(91,66,150,0.05);
+
+    transform: rotate(-3deg);
+    transition: transform 0.3s ease;
+}
+
+.hero-calendar-card:hover {
+    transform: rotate(0deg) translateY(-5px);
+}
+
+.hero-calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    color: #9470dc;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.hero-calendar-month {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin: 20px 0 17px;
+}
+
+.hero-calendar-month strong {
+    color: #30264e;
+    font-size: 15px;
+}
+
+.hero-calendar-month p {
+    margin: 5px 0 0;
+    color: #a09ab3;
+    font-size: 10px;
+}
+
+.calendar-icon {
+    width: 37px;
+    height: 37px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #f0eaff;
+    color: #895fe2;
+    border-radius: 11px;
+    font-size: 19px;
+}
+
+.hero-calendar-days,
+.hero-calendar-dates {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+}
+
+.hero-calendar-days {
+    margin-bottom: 12px;
+    color: #aaa2bc;
+    font-size: 8px;
+    font-weight: 800;
+}
+
+.hero-calendar-dates {
+    row-gap: 10px;
+    color: #5e5577;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.hero-calendar-dates span {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 25px;
+    height: 25px;
+    margin: auto;
+}
+
+.hero-calendar-dates .date-active {
+    background: linear-gradient(135deg, #8058e9, #a777f0);
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(128,88,233,0.25);
+}
+
+
+/* CALENDAR FOOTER */
+
+.calendar-footer {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    margin-top: 17px;
+    padding-top: 12px;
+
+    border-top: 1px solid #f0ebf7;
+
+    color: #9289a8;
+    font-size: 9px;
+}
+
+.calendar-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #8ed4a5;
+}
+
+
+/* FLOATING DECORATIONS */
+
+.floating-star {
+    position: absolute;
+    color: #966cf0;
+    z-index: 3;
+}
+
+.star-one {
+    top: 8px;
+    right: 43px;
+    font-size: 23px;
+}
+
+.star-two {
+    bottom: 20px;
+    left: 20px;
+    font-size: 25px;
+}
+
+.floating-productivity {
+    position: absolute;
+    z-index: 4;
+
+    right: -5px;
+    bottom: 5px;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 12px 15px;
+
+    background: white;
+    border: 1px solid #f0eafa;
+    border-radius: 13px;
+
+    box-shadow: 0 8px 24px rgba(75,54,130,0.12);
+}
+
+.floating-productivity > span {
+    font-size: 22px;
+}
+
+.floating-productivity strong {
+    display: block;
+    color: #41345f;
+    font-size: 10px;
+}
+
+.floating-productivity small {
+    display: block;
+    margin-top: 4px;
+    color: #aaa0bb;
+    font-size: 9px;
+}
+
+
+/* RESPONSIVE DESIGN */
+
+@media (max-width: 900px) {
+
+    .hero-card {
+        padding: 32px;
+    }
+
+    .hero-illustration {
+        width: 300px;
+        min-width: 270px;
+    }
+
+}
+
+@media (max-width: 700px) {
+
+    .hero-card {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 28px 22px;
+        gap: 15px;
+    }
+
+    .hero-content {
+        max-width: 100%;
+    }
+
+    .hero-illustration {
+        width: 100%;
+        min-width: 0;
+        height: 290px;
+        margin-top: 5px;
+    }
+
+    .hero-calendar-card {
+        width: 260px;
+    }
+
+    .floating-productivity {
+        right: 0;
+        bottom: 0;
+    }
+
+    .hero-highlights {
+        gap: 12px;
+    }
+
+}
+
+@media (max-width: 400px) {
+
+    .hero-content h1 {
+        font-size: 30px;
+    }
+
+    .hero-actions button {
+        padding: 11px 13px;
+        font-size: 11px;
+    }
+
+    .hero-illustration {
+        transform: scale(0.9);
+        transform-origin: center;
+    }
+
+}

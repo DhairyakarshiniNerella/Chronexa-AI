@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="static/style.css">
 
     <style>
+        /* LOGOUT BUTTON */
         .logout-btn {
             display: inline-flex;
             align-items: center;
@@ -56,225 +57,439 @@
 
     <div class="app-container">
 
-        
-<!-- SIDEBAR -->
-<aside class="sidebar">
+        <!-- =====================================
+             SIDEBAR
+        ====================================== -->
 
-    <div class="logo">
-        <div class="logo-icon">✦</div>
-        <div>
-            <h2>Chronexa</h2>
-            <span>AI WORKSPACE</span>
-        </div>
-    </div>
+        <aside class="sidebar">
 
-    <div class="sidebar-content">
+            <!-- LOGO -->
+            <div class="logo">
 
-        <p class="menu-title">MENU</p>
+                <div class="logo-icon">✦</div>
 
-        <nav class="navigation">
-
-            <a href="#" class="nav-link active">
-                <span class="nav-icon">▦</span>
-                <span>Overview</span>
-            </a>
-
-            <a href="#" class="nav-link">
-                <span class="nav-icon">✓</span>
-                <span>My Tasks</span>
-                <span class="nav-count" id="taskCount">0</span>
-            </a>
-
-            <a href="#" class="nav-link">
-                <span class="nav-icon">▣</span>
-                <span>Schedules</span>
-                <span class="nav-count" id="scheduleCount">0</span>
-            </a>
-
-            <a href="#" class="nav-link">
-                <span class="nav-icon">▤</span>
-                <span>My Notes</span>
-            </a>
-
-            <a href="#" class="nav-link">
-                <span class="nav-icon">♧</span>
-                <span>Reminders</span>
-                <span class="nav-count" id="reminderCount">0</span>
-            </a>
-
-        </nav>
-
-        <p class="menu-title second-menu">WORKSPACE</p>
-
-        <nav class="navigation">
-
-            <a href="#" class="nav-link">
-                <span class="nav-icon">✧</span>
-                <span>AI Assistant</span>
-                <span class="ai-badge">AI</span>
-            </a>
-
-            <a href="#" class="nav-link">
-                <span class="nav-icon">⚙</span>
-                <span>Settings</span>
-            </a>
-
-        </nav>
-
-    </div>
-
-    <!-- SIDEBAR BOTTOM -->
-    <div class="sidebar-bottom">
-
-        <div class="upgrade-card">
-            <div class="upgrade-icon">✦</div>
-            <h4>Work smarter with AI</h4>
-            <p>Your productivity companion is ready.</p>
-            <button class="upgrade-btn">Explore AI →</button>
-        </div>
-
-        <div class="user-profile">
-            <div class="user-avatar">U</div>
-
-            <div class="user-details">
-                <h4>My Account</h4>
-                <p>Personal workspace</p>
-            </div>
-
-            <span class="profile-menu">•••</span>
-        </div>
-
-    </div>
-
-</aside>
-
-    
-<!-- MAIN CONTENT -->
-<main class="main-content">
-
-    <!-- =====================================
-         COMBINED DASHBOARD HERO CARD
-    ====================================== -->
-    <section class="dashboard-hero-card">
-
-        <!-- TOPBAR -->
-        <header class="topbar">
-
-            <div class="breadcrumb">
-                <span>Workspace</span>
-                <span>/</span>
-                <strong>Overview</strong>
-            </div>
-
-            <div class="topbar-actions">
-
-                <button class="search-btn" type="button">
-                    <span>⌕</span>
-                    Search anything...
-                    <span class="search-shortcut">Ctrl K</span>
-                </button>
-
-                <button
-                    class="notification-btn"
-                    type="button"
-                    onclick="requestNotificationPermission()"
-                    title="Enable browser notifications">
-                    🔔
-                    <span class="notification-dot"></span>
-                </button>
-
-                <div class="top-avatar">U</div>
-
-                <button
-                    class="logout-btn"
-                    type="button"
-                    onclick="logoutUser()">
-                    ↪ Logout
-                </button>
-
-            </div>
-
-        </header>
-
-
-        <!-- WELCOME SECTION -->
-        <section class="welcome-section">
-
-            <!-- Welcome Text -->
-            <div class="welcome-content">
-
-                <span class="welcome-label">
-                    ✨ YOUR PRODUCTIVITY SPACE
-                </span>
-
-                <h1>
-                    Good Day!
-                    <span>✦</span>
-                </h1>
-
-                <p>
-                    Stay productive, organized and achieve more today!
-                </p>
+                <div>
+                    <h2>Chronexa</h2>
+                    <span>AI WORKSPACE</span>
+                </div>
 
             </div>
 
 
-            <!-- Calendar Illustration -->
-            <div class="welcome-visual">
+            <!-- SIDEBAR NAVIGATION -->
+            <div class="sidebar-content">
 
-                <div class="visual-sparkle">✦</div>
+                <p class="menu-title">MENU</p>
 
-                <div class="visual-calendar">
+                <nav class="navigation">
 
-                    <div class="calendar-top">● ● ●</div>
+                    <a href="#" class="nav-link active">
+                        <span class="nav-icon">▦</span>
+                        <span>Overview</span>
+                    </a>
 
-                    <div class="calendar-grid">
-                        <span>1</span>
-                        <span>2</span>
-                        <span>3</span>
-                        <span>4</span>
-                        <span>5</span>
-                        <span>6</span>
-                        <span>7</span>
-                        <span>✓</span>
-                        <span>9</span>
+                    <a href="#" class="nav-link">
+                        <span class="nav-icon">✓</span>
+                        <span>My Tasks</span>
+                        <span class="nav-count" id="taskCount">0</span>
+                    </a>
+
+                    <a href="#" class="nav-link">
+                        <span class="nav-icon">▣</span>
+                        <span>Schedules</span>
+                        <span class="nav-count" id="scheduleCount">0</span>
+                    </a>
+
+                    <a href="#" class="nav-link">
+                        <span class="nav-icon">▤</span>
+                        <span>My Notes</span>
+                    </a>
+
+                    <a href="#" class="nav-link">
+                        <span class="nav-icon">♧</span>
+                        <span>Reminders</span>
+                        <span class="nav-count" id="reminderCount">0</span>
+                    </a>
+
+                </nav>
+
+
+                <!-- WORKSPACE MENU -->
+                <p class="menu-title second-menu">WORKSPACE</p>
+
+                <nav class="navigation">
+
+                    <a href="#" class="nav-link">
+                        <span class="nav-icon">✧</span>
+                        <span>AI Assistant</span>
+                        <span class="ai-badge">AI</span>
+                    </a>
+
+                    <a href="#" class="nav-link">
+                        <span class="nav-icon">⚙</span>
+                        <span>Settings</span>
+                    </a>
+
+                </nav>
+
+            </div>
+
+
+            <!-- SIDEBAR BOTTOM -->
+            <div class="sidebar-bottom">
+
+                <div class="upgrade-card">
+
+                    <div class="upgrade-icon">✦</div>
+
+                    <h4>Work smarter with AI</h4>
+
+                    <p>Your productivity companion is ready.</p>
+
+                    <button class="upgrade-btn">
+                        Explore AI →
+                    </button>
+
+                </div>
+
+
+                <!-- USER PROFILE -->
+                <div class="user-profile">
+
+                    <div class="user-avatar">U</div>
+
+                    <div class="user-details">
+                        <h4>My Account</h4>
+                        <p>Personal workspace</p>
+                    </div>
+
+                    <span class="profile-menu">•••</span>
+
+                </div>
+
+            </div>
+
+        </aside>
+
+
+        <!-- =====================================
+             MAIN CONTENT
+        ====================================== -->
+
+        <main class="main-content">
+
+
+            <!-- =====================================
+                 TOPBAR
+            ====================================== -->
+
+            <header class="topbar">
+
+                <div class="breadcrumb">
+
+                    <span>Workspace</span>
+
+                    <span>/</span>
+
+                    <strong>Overview</strong>
+
+                </div>
+
+
+                <!-- TOPBAR ACTIONS -->
+                <div class="topbar-actions">
+
+                    <!-- SEARCH -->
+                    <button class="search-btn" type="button">
+
+                        <span>⌕</span>
+
+                        Search anything...
+
+                        <span class="search-shortcut">
+                            Ctrl K
+                        </span>
+
+                    </button>
+
+
+                    <!-- NOTIFICATIONS -->
+                    <button
+                        class="notification-btn"
+                        type="button"
+                        onclick="requestNotificationPermission()"
+                        title="Enable browser notifications">
+
+                        🔔
+
+                        <span class="notification-dot"></span>
+
+                    </button>
+
+
+                    <!-- USER AVATAR -->
+                    <div class="top-avatar">
+                        U
+                    </div>
+
+
+                    <!-- LOGOUT -->
+                    <button
+                        class="logout-btn"
+                        type="button"
+                        onclick="logoutUser()">
+
+                        ↪ Logout
+
+                    </button>
+
+                </div>
+
+            </header>
+
+
+            <!-- =====================================
+                 PREMIUM WELCOME HERO CARD
+            ====================================== -->
+
+            <section class="hero-card">
+
+
+                <!-- LEFT CONTENT -->
+                <div class="hero-content">
+
+
+                    <!-- WELCOME LABEL -->
+                    <div class="hero-label">
+
+                        <span class="hero-label-icon">✦</span>
+
+                        YOUR PRODUCTIVITY SPACE
+
+                    </div>
+
+
+                    <!-- WELCOME HEADING -->
+                    <h1>
+
+                        Good Day!
+
+                        <span class="hero-sparkle">✦</span>
+
+                    </h1>
+
+
+                    <!-- DESCRIPTION -->
+                    <p class="hero-description">
+
+                        Stay productive, organized and achieve
+                        more today!
+
+                        Your day, your goals, your success.
+
+                    </p>
+
+
+                    <!-- PRODUCTIVITY HIGHLIGHTS -->
+                    <div class="hero-highlights">
+
+
+                        <div class="hero-highlight">
+
+                            <span class="highlight-icon">✓</span>
+
+                            <span>Stay Focused</span>
+
+                        </div>
+
+
+                        <div class="hero-highlight">
+
+                            <span class="highlight-icon">◷</span>
+
+                            <span>Manage Time</span>
+
+                        </div>
+
+
+                        <div class="hero-highlight">
+
+                            <span class="highlight-icon">✧</span>
+
+                            <span>Achieve More</span>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="hero-actions">
+
+
+                        <button
+                            class="hero-secondary-btn"
+                            id="viewCalendarBtn"
+                            type="button">
+
+                            ▦ My Tasks
+
+                        </button>
+
+
+                        <button
+                            class="hero-primary-btn"
+                            type="button">
+
+                            ✦ View Calendar
+
+                        </button>
+
                     </div>
 
                 </div>
 
-                <div class="visual-clock">🕒</div>
-                <div class="visual-plant">🌿</div>
-
-            </div>
 
 
-            <!-- Action Buttons -->
-            <div class="welcome-actions">
+                <!-- =====================================
+                     RIGHT SIDE ILLUSTRATION
+                ====================================== -->
 
-                <button
-                    type="button"
-                    class="secondary-btn">
-                    ▦ My Tasks
-                </button>
+                <div class="hero-illustration">
 
-                <button
-                    type="button"
-                    class="primary-btn"
-                    id="viewCalendarBtn">
-                    ✦ View Calendar
-                </button>
 
-            </div>
+                    <!-- BACKGROUND ORBITS -->
+                    <div class="hero-orbit orbit-one"></div>
 
-        </section>
+                    <div class="hero-orbit orbit-two"></div>
 
-    </section>
 
-    <!-- YOUR DASHBOARD STATISTICS SECTION
-         SHOULD CONTINUE BELOW THIS CARD -->
 
-</main>
+                    <!-- CALENDAR CARD -->
+                    <div class="hero-calendar-card">
 
+
+                        <!-- CALENDAR HEADER -->
+                        <div class="hero-calendar-header">
+
+                            <span>✦</span>
+
+                            <span>MY PLANNER</span>
+
+                            <span>•••</span>
+
+                        </div>
+
+
+
+                        <!-- CALENDAR TITLE -->
+                        <div class="hero-calendar-month">
+
+                            <div>
+
+                                <strong>Stay Organized</strong>
+
+                                <p>Make every day count</p>
+
+                            </div>
+
+                            <span class="calendar-icon">
+                                ▦
+                            </span>
+
+                        </div>
+
+
+
+                        <!-- WEEK DAYS -->
+                        <div class="hero-calendar-days">
+
+                            <span>MON</span>
+                            <span>TUE</span>
+                            <span>WED</span>
+                            <span>THU</span>
+                            <span>FRI</span>
+                            <span>SAT</span>
+                            <span>SUN</span>
+
+                        </div>
+
+
+
+                        <!-- CALENDAR DATES -->
+                        <div class="hero-calendar-dates">
+
+                            <span>1</span>
+                            <span>2</span>
+                            <span>3</span>
+                            <span>4</span>
+                            <span>5</span>
+                            <span>6</span>
+                            <span>7</span>
+
+                            <span>8</span>
+
+                            <span class="date-active">
+                                9
+                            </span>
+
+                            <span>10</span>
+                            <span>11</span>
+                            <span>12</span>
+                            <span>13</span>
+                            <span>14</span>
+
+                        </div>
+
+
+
+                        <!-- CALENDAR FOOTER -->
+                        <div class="calendar-footer">
+
+                            <span class="calendar-status-dot"></span>
+
+                            Your productivity journey starts here
+
+                        </div>
+
+                    </div>
+
+
+
+                    <!-- FLOATING DECORATIONS -->
+                    <div class="floating-star star-one">
+                        ✦
+                    </div>
+
+                    <div class="floating-star star-two">
+                        ✧
+                    </div>
+
+
+
+                    <!-- FLOATING PRODUCTIVITY CARD -->
+                    <div class="floating-productivity">
+
+                        <span>✨</span>
+
+                        <div>
+
+                            <strong>Stay Productive</strong>
+
+                            <small>One task at a time</small>
+
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+
+            </section>
+
+
+            <!-- KEEP YOUR EXISTING DASHBOARD SECTIONS BELOW THIS LINE -->
 
             <!-- STATISTICS -->
             <section class="stats-container">
@@ -338,30 +553,55 @@
 <!-- MAIN DASHBOARD GRID -->
 <section class="dashboard-grid">
 
-    <!-- MY TASKS -->
-    <div class="dashboard-card tasks-card">
-        <div class="card-header">
-            <div>
-                <h3>My Tasks</h3>
-                <p>Keep your priorities in focus</p>
-            </div>
-            <a href="#">View all →</a>
+    
+<!-- MY TASKS -->
+<div class="dashboard-card tasks-card">
+
+    <div class="card-header">
+        <div>
+            <h3>My Tasks</h3>
+            <p>Keep your priorities in focus</p>
         </div>
 
-        <div class="task-list">
-            <div class="empty-state">
-                <div class="empty-state-icon">✓</div>
-                <h4>No tasks yet</h4>
-                <p>Create your first task and get started.</p>
-                <button class="small-create-btn">+ Add a task</button>
-            </div>
+        <div class="task-header-actions">
+            <button type="button" class="small-create-btn">
+                + Add Task
+            </button>
+
+            
         </div>
+    </div>
+
+    <!-- TASK LIST -->
+    <div class="task-list">
+
+        <div class="empty-state">
+            <div class="empty-state-icon">✓</div>
+            <h4>No tasks yet</h4>
+            <p>Create your first task and get started.</p>
+
+            <button type="button" class="small-create-btn">
+                + Add a task
+            </button>
+        </div>
+
+    </div>
+
+    <!-- VIEW ALL TASKS -->
+    <button
+        type="button"
+        id="viewAllTasksBtn"
+        class="secondary-btn">
+
+        View All Tasks →
+
+    </button>
+
+</div>
+
     
     
-        <button type="button" id="viewAllTasksBtn" class="secondary-btn">
-            View All Tasks →
-        </button>
-        </div>
+    
 
     <!-- UPCOMING SCHEDULE -->
     <div class="dashboard-card schedule-card">
