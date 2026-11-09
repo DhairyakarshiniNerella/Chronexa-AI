@@ -443,6 +443,23 @@ if (viewAllTasksBtn) {
         loadTasks();
     };
 }
+// MY TASKS BUTTON
+const myTasksBtn = document.getElementById("myTasksBtn");
+
+if (myTasksBtn) {
+    myTasksBtn.addEventListener("click", function () {
+        const tasksSection = document.querySelector(".tasks-card");
+
+        if (tasksSection) {
+            tasksSection.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        }
+
+        loadTasks();
+    });
+}
 
 if (tasks.length === 0) {
 

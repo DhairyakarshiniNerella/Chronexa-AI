@@ -16,7 +16,7 @@ from app.routes.auth import router as auth_router
 from app.routes.notes import router as notes_router
 from app.routes.schedules import router as schedule_router
 from app.routes.reminders import router as reminder_router
-
+from app.routes.ai import router as ai_router
 from app.scheduler import start_scheduler, stop_scheduler
 
 
@@ -60,7 +60,7 @@ app.include_router(auth_router)
 app.include_router(notes_router)
 app.include_router(schedule_router)
 app.include_router(reminder_router)
-
+app.include_router(ai_router)
 
 # Home API
 @app.get("/")

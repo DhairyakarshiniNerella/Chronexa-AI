@@ -1824,6 +1824,11 @@ a {
     background: #eee9ff;
     color: #493a75;
     border-bottom-left-radius: 3px;
+
+
+    /* Preserve line breaks in AI responses */
+    white-space: pre-line;
+    line-height: 1.7;
 }
 
 .ai-message-user {
