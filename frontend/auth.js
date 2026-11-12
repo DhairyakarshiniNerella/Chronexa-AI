@@ -1011,10 +1011,7 @@ async function loadSchedules() {
 
                     <p>Your upcoming activities will appear here.</p>
 
-                    <button type="button"
-                        class="small-create-btn blue-btn">
-                        + Add schedule
-                    </button>
+                    
 
                 </div>
             `;
@@ -1080,7 +1077,6 @@ async function loadSchedules() {
         addButton.className = "small-create-btn blue-btn";
         addButton.textContent = "+ Add schedule";
 
-        scheduleList.appendChild(addButton);
 
         // Display Schedules
         displayedSchedules.forEach(schedule => {

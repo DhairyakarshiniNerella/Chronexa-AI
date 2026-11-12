@@ -1,17 +1,19 @@
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import datetime
 
 
-# Model for creating a task
 class TaskCreate(BaseModel):
-    title: str
-    description: str
+    title: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = None
     start_time: datetime
     end_time: datetime
 
 
-# Model for updating a task
 class TaskUpdate(BaseModel):
-    title: str
-    description: str
-    completed: bool
+    title: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = None
+    completed: bool = False
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None

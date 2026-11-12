@@ -4,6 +4,10 @@ import json
 import re
 
 from datetime import datetime, date, time
+from unittest import result
+from unittest import result
+from urllib import request
+from httpx import request
 
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,7 +27,8 @@ router = APIRouter(
 
 # Temporary conversation storage for each logged-in user
 pending_conversations = {}
-
+# Stores pending update/delete confirmations and duplicate selections
+pending_actions = {}
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
@@ -66,6 +71,649 @@ def normalize_status(value):
 
     return str(value).split(".")[-1].lower().replace("_", " ")
 
+
+# ==========================================
+# AI UPDATE AND DELETE OPERATIONS
+# ==========================================
+
+ACTION_INTENTS = {
+    "update_task": "task",
+    "update_schedule": "schedule",
+    "update_reminder": "reminder",
+    "update_note": "note",
+    "delete_task": "task",
+    "delete_schedule": "schedule",
+    "delete_reminder": "reminder",
+    "delete_note": "note"
+}
+
+
+def get_entity_model(entity_type):
+    models = {
+        "task": Task,
+        "schedule": Schedule,
+        "reminder": Reminder,
+        "note": Note
+    }
+    return models[entity_type]
+
+
+def find_matching_records(db, user_id, entity_type, target_title):
+    model = get_entity_model(entity_type)
+
+    records = db.query(model).filter(
+        model.user_id == user_id
+    ).all()
+
+    search_text = target_title.strip().casefold()
+
+    exact_matches = [
+        record for record in records
+        if record.title.casefold() == search_text
+    ]
+
+    if exact_matches:
+        return exact_matches
+
+    return [
+        record for record in records
+        if search_text in record.title.casefold()
+    ]
+
+
+def get_record_by_id(db, user_id, entity_type, record_id):
+    model = get_entity_model(entity_type)
+
+    return db.query(model).filter(
+        model.id == record_id,
+        model.user_id == user_id
+    ).first()
+
+
+def format_matching_records(records, entity_type):
+    lines = ["I found multiple matching records:"]
+
+    for index, record in enumerate(records, 1):
+        lines.append(
+            f"{index}. {record.title} (ID: {record.id})"
+        )
+
+    lines.append("")
+    lines.append("Please reply with the number of the record you mean.")
+
+    return "\n".join(lines)
+
+
+def get_update_changes(fields):
+    allowed_fields = [
+        "updated_title",
+        "description",
+        "content",
+        "date",
+        "start_time",
+        "end_time",
+        "remind_time",
+        "status"
+    ]
+
+    return {
+        key: fields[key]
+        for key in allowed_fields
+        if key in fields and fields[key] is not None
+    }
+
+
+def apply_record_update(
+    db,
+    user_id,
+    entity_type,
+    record,
+    changes
+):
+    if not changes:
+        return (
+            "What would you like me to change? "
+            "Please specify the new title, description, content, "
+            "status or time."
+        )
+
+    try:
+        new_title = changes.get("updated_title")
+
+        if new_title:
+            record.title = new_title.strip()
+
+        if "description" in changes and entity_type != "note":
+            record.description = changes["description"]
+
+        if entity_type == "note":
+            if "content" in changes:
+                record.content = changes["content"]
+
+        elif entity_type == "task":
+
+            if "status" in changes:
+                requested_status = normalize_status(
+                    changes["status"]
+                )
+
+                valid_statuses = {
+                    "pending": "Pending",
+                    "in progress": "In Progress",
+                    "completed": "Completed"
+                }
+
+                if requested_status not in valid_statuses:
+                    return (
+                        "Please choose a valid task status: "
+                        "Pending, In Progress or Completed."
+                    )
+
+                record.status = valid_statuses[requested_status]
+
+            schedule = record.schedule
+            reminder = record.reminder
+
+            time_fields = {
+                "date", "start_time", "end_time"
+            }
+
+            if time_fields.intersection(changes):
+
+                if not schedule:
+                    return (
+                        "This task does not have a linked schedule "
+                        "to update."
+                    )
+
+                selected_date = changes.get(
+                    "date",
+                    schedule.start_time.date().isoformat()
+                )
+
+                new_start = convert_datetime(
+                    selected_date,
+                    changes.get(
+                        "start_time",
+                        schedule.start_time.strftime("%H:%M")
+                    )
+                )
+
+                new_end = convert_datetime(
+                    selected_date,
+                    changes.get(
+                        "end_time",
+                        schedule.end_time.strftime("%H:%M")
+                    )
+                )
+
+                if new_end <= new_start:
+                    return "End time must be after start time."
+
+                conflict = db.query(Schedule).filter(
+                    Schedule.user_id == user_id,
+                    Schedule.id != schedule.id,
+                    Schedule.start_time < new_end,
+                    Schedule.end_time > new_start
+                ).first()
+
+                if conflict:
+                    return (
+                        "You already have another schedule during "
+                        f"that time: {conflict.title}. "
+                        "Please choose another time."
+                    )
+
+                schedule.start_time = new_start
+                schedule.end_time = new_end
+
+                if reminder:
+                    reminder.remind_at = new_start
+                    reminder.is_sent = False
+
+            if schedule:
+                schedule.title = record.title
+                schedule.description = record.description
+
+            if reminder:
+                reminder.title = record.title
+                reminder.description = record.description
+
+        elif entity_type == "schedule":
+
+            if "date" in changes or "start_time" in changes or "end_time" in changes:
+
+                selected_date = changes.get(
+                    "date",
+                    record.start_time.date().isoformat()
+                )
+
+                new_start = convert_datetime(
+                    selected_date,
+                    changes.get(
+                        "start_time",
+                        record.start_time.strftime("%H:%M")
+                    )
+                )
+
+                new_end = convert_datetime(
+                    selected_date,
+                    changes.get(
+                        "end_time",
+                        record.end_time.strftime("%H:%M")
+                    )
+                )
+
+                if new_end <= new_start:
+                    return "End time must be after start time."
+
+                conflict = db.query(Schedule).filter(
+                    Schedule.user_id == user_id,
+                    Schedule.id != record.id,
+                    Schedule.start_time < new_end,
+                    Schedule.end_time > new_start
+                ).first()
+
+                if conflict:
+                    return (
+                        "You already have another schedule during "
+                        f"that time: {conflict.title}."
+                    )
+
+                record.start_time = new_start
+                record.end_time = new_end
+
+            # Keep linked records synchronized.
+            if record.task:
+                record.task.title = record.title
+                record.task.description = record.description
+
+                if record.task.reminder:
+                    record.task.reminder.title = record.title
+                    record.task.reminder.description = record.description
+
+                    if "start_time" in changes or "date" in changes:
+                        record.task.reminder.remind_at = record.start_time
+                        record.task.reminder.is_sent = False
+
+        elif entity_type == "reminder":
+
+            if "date" in changes or "remind_time" in changes:
+
+                selected_date = changes.get(
+                    "date",
+                    record.remind_at.date().isoformat()
+                )
+
+                record.remind_at = convert_datetime(
+                    selected_date,
+                    changes.get(
+                        "remind_time",
+                        record.remind_at.strftime("%H:%M")
+                    )
+                )
+
+            record.is_sent = False
+
+            if record.task:
+                record.task.title = record.title
+                record.task.description = record.description
+
+                if record.task.schedule:
+                    record.task.schedule.title = record.title
+                    record.task.schedule.description = record.description
+
+        db.commit()
+        db.refresh(record)
+
+        return (
+            f"{entity_type.capitalize()} "
+            f"'{record.title}' updated successfully!"
+        )
+
+    except HTTPException:
+        db.rollback()
+        raise
+
+    except Exception:
+        db.rollback()
+        raise
+
+
+def begin_ai_action(
+    db,
+    user_id,
+    intent,
+    fields
+):
+    entity_type = ACTION_INTENTS[intent]
+
+    is_delete = intent.startswith("delete_")
+
+    target_title = fields.get("target_title")
+
+    
+    if not target_title:
+        pending_actions[user_id] = {
+            "stage": "identify_target",
+            "action": "delete" if is_delete else "update",
+            "entity_type": entity_type,
+            "changes": changes
+        }
+
+        return {
+            "reply": (
+                f"Which {entity_type} would you like to "
+                f"{'delete' if is_delete else 'update'}? "
+                "Please provide its title."
+            ),
+            "pending": True
+        }
+
+
+    changes = get_update_changes(fields)
+
+    if not is_delete and not changes:
+        return {
+            "reply": (
+                f"I found that you want to update a {entity_type}. "
+                "Please also tell me what you want to change."
+            ),
+            "pending": False
+        }
+
+    records = find_matching_records(
+        db,
+        user_id,
+        entity_type,
+        target_title
+    )
+
+    if not records:
+        return {
+            "reply": (
+                f"I couldn't find a {entity_type} matching "
+                f"'{target_title}'. Please check its title."
+            ),
+            "pending": False
+        }
+
+    if len(records) > 1:
+        pending_actions[user_id] = {
+            "stage": "select",
+            "action": "delete" if is_delete else "update",
+            "entity_type": entity_type,
+            "record_ids": [record.id for record in records],
+            "changes": changes
+        }
+
+        return {
+            "reply": format_matching_records(
+                records,
+                entity_type
+            ),
+            "pending": True
+        }
+
+    record = records[0]
+
+    if is_delete:
+        pending_actions[user_id] = {
+            "stage": "confirm_delete",
+            "entity_type": entity_type,
+            "record_id": record.id,
+            "title": record.title
+        }
+
+        return {
+            "reply": (
+                f"Are you sure you want to delete "
+                f"'{record.title}'? "
+                "Please reply Yes to confirm or No to cancel."
+            ),
+            "pending": True
+        }
+
+    reply = apply_record_update(
+        db,
+        user_id,
+        entity_type,
+        record,
+        changes
+    )
+
+    return {
+        "reply": reply,
+        "pending": False,
+        "completed": True
+    }
+
+
+def handle_pending_action(db, user_id, message):
+    pending = pending_actions.get(user_id)
+
+    if not pending:
+        return None
+
+    text = message.strip().casefold()
+
+    if pending["stage"] == "identify_target":
+        entity_type = pending["entity_type"]
+        action = pending["action"]
+        changes = pending["changes"]
+
+        target_title = message.strip()
+
+        records = find_matching_records(
+            db,
+            user_id,
+            entity_type,
+            target_title
+        )
+
+        if not records:
+            return {
+                "reply": (
+                    f"I couldn't find a {entity_type} matching "
+                    f"'{target_title}'. Please provide the correct title."
+                ),
+                "pending": True
+            }
+
+        if len(records) > 1:
+            pending_actions[user_id] = {
+                "stage": "select",
+                "action": action,
+                "entity_type": entity_type,
+                "record_ids": [record.id for record in records],
+                "changes": changes
+            }
+
+            return {
+                "reply": format_matching_records(records, entity_type),
+                "pending": True
+            }
+
+        record = records[0]
+
+        if action == "delete":
+            pending_actions[user_id] = {
+                "stage": "confirm_delete",
+                "entity_type": entity_type,
+                "record_id": record.id,
+                "title": record.title
+            }
+
+            return {
+                "reply": (
+                    f"Are you sure you want to delete "
+                    f"'{record.title}'? "
+                    "Please reply Yes to confirm or No to cancel."
+                ),
+                "pending": True
+            }
+
+        pending_actions.pop(user_id, None)
+
+        reply = apply_record_update(
+            db,
+            user_id,
+            entity_type,
+            record,
+            changes
+        )
+
+        return {
+            "reply": reply,
+            "pending": False,
+            "completed": True
+        }
+
+    # Handle delete confirmation.
+    if pending["stage"] == "confirm_delete":
+
+        if text in {"yes", "y", "confirm", "yes delete", "confirm delete"}:
+
+            record = get_record_by_id(
+                db,
+                user_id,
+                pending["entity_type"],
+                pending["record_id"]
+            )
+
+            if not record:
+                pending_actions.pop(user_id, None)
+                return {
+                    "reply": "That record no longer exists.",
+                    "pending": False
+                }
+
+            title = record.title
+
+            try:
+                db.delete(record)
+                db.commit()
+                pending_actions.pop(user_id, None)
+
+                return {
+                    "reply": f"'{title}' deleted successfully!",
+                    "pending": False,
+                    "completed": True
+                }
+
+            except Exception:
+                db.rollback()
+                raise
+
+        if text in {"no", "n", "cancel", "don't delete", "do not delete"}:
+            pending_actions.pop(user_id, None)
+
+            return {
+                "reply": "Deletion cancelled. Your record is safe.",
+                "pending": False
+            }
+
+        return {
+            "reply": (
+                "Please reply Yes to confirm deletion "
+                "or No to cancel."
+            ),
+            "pending": True
+        }
+
+    # Handle duplicate-title selection.
+    if pending["stage"] == "select":
+
+        selection_words = {
+            "first": 1,
+            "second": 2,
+            "third": 3,
+            "fourth": 4,
+            "fifth": 5
+        }
+
+        selected_number = None
+
+        number_match = re.search(r"\b(\d+)\b", text)
+
+        if number_match:
+            selected_number = int(number_match.group(1))
+        else:
+            for word, number in selection_words.items():
+                if word in text:
+                    selected_number = number
+                    break
+
+        record_ids = pending["record_ids"]
+
+        if (
+            selected_number is None
+            or selected_number < 1
+            or selected_number > len(record_ids)
+        ):
+            return {
+                "reply": (
+                    "Please select a valid record number "
+                    "from the list."
+                ),
+                "pending": True
+            }
+
+        record_id = record_ids[selected_number - 1]
+
+        record = get_record_by_id(
+            db,
+            user_id,
+            pending["entity_type"],
+            record_id
+        )
+
+        if not record:
+            pending_actions.pop(user_id, None)
+
+            return {
+                "reply": "That record could not be found.",
+                "pending": False
+            }
+
+        action = pending["action"]
+        entity_type = pending["entity_type"]
+        changes = pending["changes"]
+
+        if action == "delete":
+            pending_actions[user_id] = {
+                "stage": "confirm_delete",
+                "entity_type": entity_type,
+                "record_id": record.id,
+                "title": record.title
+            }
+
+            return {
+                "reply": (
+                    f"You selected '{record.title}'. "
+                    "Are you sure you want to delete it? "
+                    "Reply Yes to confirm or No to cancel."
+                ),
+                "pending": True
+            }
+
+        pending_actions.pop(user_id, None)
+
+        reply = apply_record_update(
+            db,
+            user_id,
+            entity_type,
+            record,
+            changes
+        )
+
+        return {
+            "reply": reply,
+            "pending": False,
+            "completed": True
+        }
+
+    return None
 
 # Detect note retrieval directly using Python.
 # This prevents Groq from incorrectly classifying
@@ -239,6 +887,14 @@ Allowed intents:
 - list_productivity
 - project_question
 - out_of_scope
+- update_task
+- update_schedule
+- update_reminder
+- update_note
+- delete_task
+- delete_schedule
+- delete_reminder
+- delete_note
 
 Return ONLY valid JSON:
 
@@ -253,6 +909,8 @@ Return ONLY valid JSON:
         "end_time": null,
         "remind_time": null,
         "status": null
+        "target_title": null,
+        "updated_title": null,
     }},
     "reply": ""
 }}
@@ -285,7 +943,24 @@ Listing rules:
 - If no status filter is requested, leave status null.
 - Apply task status filtering to tasks and schedules.
 - Do not apply task status filtering to reminders or notes.
+Update and delete rules:
 
+- "Update my task..." -> update_task.
+- "Update my schedule..." -> update_schedule.
+- "Update my reminder..." -> update_reminder.
+- "Update my note..." -> update_note.
+- "Delete my task..." -> delete_task.
+- "Delete my schedule..." -> delete_schedule.
+- "Delete my reminder..." -> delete_reminder.
+- "Delete my note..." -> delete_note.
+- Put the existing record's title in target_title.
+- Put a replacement title in updated_title.
+- Put the new description in description.
+- Put the new note text in content.
+- Put the requested new status in status.
+- Extract new dates and times when requested.
+- Never invent a target title or changes.
+- Do not classify a request to update or delete as a creation request.
 Project question rules:
 
 - Answer questions about Chronexa AI and its features.
@@ -864,7 +1539,44 @@ def chat_with_ai(
         # Check for an unfinished request.
 
         pending = pending_conversations.get(user_id)
+        # Handle an existing update/delete confirmation or selection.
+        pending_action_result = handle_pending_action(
+            db,
+            user_id,
+            request.message
+        )
 
+        if pending_action_result is not None:
+             return pending_action_result
+        
+        # Give new update/delete requests priority over pending creation.
+        action_words = re.search(
+            r"\b(delete|remove|update|edit|change)\b",
+            request.message,
+            re.IGNORECASE
+        )
+
+        if pending and action_words:
+            new_action_result = understand_message(
+                client,
+                request.message,
+                None,
+                context
+            )
+
+            new_intent = new_action_result.get("intent")
+
+            if new_intent in ACTION_INTENTS:
+                pending_conversations.pop(user_id, None)
+
+                return begin_ai_action(
+                    db,
+                    user_id,
+                    new_intent,
+                    new_action_result.get("fields", {})
+                )
+
+        
         # Detect note retrieval directly before calling Groq.
 
         # This avoids incorrect out_of_scope classification
@@ -955,14 +1667,22 @@ def chat_with_ai(
 
             intent = pending["intent"]
 
+        
         else:
-
             intent = result.get("intent")
 
+            # Handle AI update and delete requests.
+            if intent in ACTION_INTENTS:
+                action_result = begin_ai_action(
+                    db,
+                    user_id,
+                    intent,
+                    result.get("fields", {})
+                )
+                return action_result
+
             # Handle unrelated requests.
-
             if intent == "out_of_scope":
-
                 return {
                     "reply": (
                         "I'm Chronexa AI, your personal productivity "
@@ -971,7 +1691,8 @@ def chat_with_ai(
                     )
                 }
 
-            # Handle Chronexa questions.
+            
+           
 
             if intent == "project_question":
 

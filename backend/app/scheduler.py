@@ -10,16 +10,19 @@ scheduler = BackgroundScheduler()
 
 def start_scheduler():
 
-    # Run reminder checker every 1 minute
+    # Run reminder checker every minute.
+    # Prevent overlapping executions of this job.
     scheduler.add_job(
         check_due_reminders,
         trigger="interval",
         minutes=1,
         id="reminder_checker",
-        replace_existing=True
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=30
     )
 
-    # Start scheduler
     if not scheduler.running:
         scheduler.start()
 
@@ -29,6 +32,5 @@ def start_scheduler():
 def stop_scheduler():
 
     if scheduler.running:
-        scheduler.shutdown()
-
+        scheduler.shutdown(wait=True)
         print("Chronexa reminder scheduler stopped!")

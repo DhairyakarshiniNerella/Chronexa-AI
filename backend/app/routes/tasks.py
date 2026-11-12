@@ -128,6 +128,7 @@ def create_task(
 
 
 # PUT - Update a task
+
 @router.put("/tasks/{task_id}")
 def update_task(
     task_id: int,
@@ -141,30 +142,67 @@ def update_task(
     ).first()
 
     if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    start_time = updated_task.start_time
+    end_time = updated_task.end_time
+
+    if start_time and end_time and end_time <= start_time:
         raise HTTPException(
-            status_code=404,
-            detail="Task not found"
+            status_code=400,
+            detail="End time must be after start time"
         )
 
-    task.title = updated_task.title
-    task.description = updated_task.description
-    task.status = (
-        "Completed" if updated_task.completed else "Pending"
-    )
+    try:
+        task.title = updated_task.title
+        task.description = updated_task.description
+        task.status = (
+            "Completed" if updated_task.completed else "Pending"
+        )
 
-    db.commit()
-    db.refresh(task)
+        if task.schedule:
+            task.schedule.title = task.title
+            task.schedule.description = task.description
 
-    return {
-        "message": "Task updated successfully",
-        "task": {
-            "id": task.id,
-            "title": task.title,
-            "description": task.description,
-            "completed": task.status == "Completed"
+            if start_time:
+                task.schedule.start_time = start_time
+
+            if end_time:
+                task.schedule.end_time = end_time
+
+            if task.schedule.end_time <= task.schedule.start_time:
+                raise HTTPException(
+                    status_code=400,
+                    detail="End time must be after start time"
+                )
+
+        if task.reminder:
+            task.reminder.title = task.title
+            task.reminder.description = task.description
+
+            if start_time:
+                task.reminder.remind_at = start_time
+                task.reminder.is_sent = False
+
+        db.commit()
+        db.refresh(task)
+
+        return {
+            "message": "Task and linked records updated successfully",
+            "task": {
+                "id": task.id,
+                "title": task.title,
+                "description": task.description,
+                "completed": task.status == "Completed"
+            }
         }
-    }
 
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
 
 # DELETE - Delete a task
 @router.delete("/tasks/{task_id}")

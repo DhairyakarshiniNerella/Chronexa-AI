@@ -16,37 +16,65 @@ def check_due_reminders():
 
         due_reminders = db.query(Reminder).filter(
             Reminder.remind_at <= current_time,
-            Reminder.is_sent == False
+            Reminder.is_sent.is_(False)
         ).all()
+
+        if not due_reminders:
+            print("No due reminders found.")
+            return
+
+        print(f"Found {len(due_reminders)} due reminder(s).")
 
         for reminder in due_reminders:
 
-            print("\n========== CHRONEXA NOTIFICATION ==========")
-            print("Reminder:", reminder.title)
-            print("Description:", reminder.description)
-            print("Scheduled Time:", reminder.remind_at)
+            try:
+                print("\n========== CHRONEXA NOTIFICATION ==========")
+                print("Reminder:", reminder.title)
+                print("Description:", reminder.description)
+                print("Scheduled Time:", reminder.remind_at)
 
-            # Get the reminder owner's registered email
-            user_email = reminder.owner.email
+                # Get reminder owner's registered email
+                user_email = reminder.owner.email
 
-            # Send reminder email
-            email_sent = send_reminder_email(
-                to_email=user_email,
-                title=reminder.title,
-                description=reminder.description,
-                remind_at=reminder.remind_at
-            )
+                # Send reminder email
+                email_sent = send_reminder_email(
+                    to_email=user_email,
+                    title=reminder.title,
+                    description=reminder.description,
+                    remind_at=reminder.remind_at
+                )
 
-            # Mark as sent only after successful email delivery
-            if email_sent:
-                reminder.is_sent = True
-                print("Email notification completed.")
+                if email_sent:
 
-            print("===========================================\n")
+                    reminder.is_sent = True
+                    db.commit()
 
-        db.commit()
+                    print("Email notification completed.")
+                    print("Reminder marked as sent.")
+
+                else:
+                    db.rollback()
+                    print(
+                        f"Email failed for reminder: {reminder.title}. "
+                        "It will be retried during the next check."
+                    )
+
+                print("===========================================\n")
+
+            except Exception as error:
+
+                db.rollback()
+
+                print(
+                    f"Error processing reminder "
+                    f"'{reminder.title}': {error}"
+                )
+
+                # Continue processing other reminders
+                continue
 
     except Exception as error:
+
         db.rollback()
         print("Reminder checker error:", error)
 
