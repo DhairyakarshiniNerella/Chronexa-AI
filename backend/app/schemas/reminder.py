@@ -1,6 +1,6 @@
 
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 
@@ -13,6 +13,10 @@ class ReminderCreate(BaseModel):
 
     remind_at: datetime
 
+    recurrence: Optional[str] = None
+
+    recurrence_end_date: Optional[date] = None
+
 
 # Schema for updating a reminder
 class ReminderUpdate(BaseModel):
@@ -22,3 +26,7 @@ class ReminderUpdate(BaseModel):
     description: Optional[str] = None
 
     remind_at: datetime
+
+    recurrence: Optional[str] = None
+
+    recurrence_end_date: Optional[date] = None

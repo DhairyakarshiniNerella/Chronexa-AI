@@ -1,9 +1,8 @@
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database import SessionLocal
 from models import Reminder
-
 from app.email_service import send_reminder_email
 
 
@@ -14,29 +13,17 @@ def check_due_reminders():
     try:
         current_time = datetime.now()
 
+        # Find reminders that are due and have not been sent
         due_reminders = db.query(Reminder).filter(
             Reminder.remind_at <= current_time,
             Reminder.is_sent.is_(False)
         ).all()
 
-        if not due_reminders:
-            print("No due reminders found.")
-            return
-
-        print(f"Found {len(due_reminders)} due reminder(s).")
-
         for reminder in due_reminders:
 
             try:
-                print("\n========== CHRONEXA NOTIFICATION ==========")
-                print("Reminder:", reminder.title)
-                print("Description:", reminder.description)
-                print("Scheduled Time:", reminder.remind_at)
-
-                # Get reminder owner's registered email
                 user_email = reminder.owner.email
 
-                # Send reminder email
                 email_sent = send_reminder_email(
                     to_email=user_email,
                     title=reminder.title,
@@ -46,36 +33,63 @@ def check_due_reminders():
 
                 if email_sent:
 
-                    reminder.is_sent = True
+                    # Handle daily recurring reminders
+                    if (
+                        reminder.recurrence == "daily"
+                        and reminder.recurrence_end_date
+                    ):
+
+                        next_reminder = (
+                            reminder.remind_at + timedelta(days=1)
+                        )
+
+                        # Skip missed occurrences if the backend
+                        # was offline, avoiding multiple emails at once.
+                        while (
+                            next_reminder <= current_time
+                            and next_reminder.date()
+                            <= reminder.recurrence_end_date
+                        ):
+                            next_reminder += timedelta(days=1)
+
+                        # Continue if another occurrence remains
+                        if (
+                            next_reminder.date()
+                            <= reminder.recurrence_end_date
+                        ):
+                            reminder.remind_at = next_reminder
+                            reminder.is_sent = False
+
+                        else:
+                            # Final occurrence has been sent
+                            reminder.is_sent = True
+
+                    else:
+                        # One-time reminder
+                        reminder.is_sent = True
+
                     db.commit()
 
-                    print("Email notification completed.")
-                    print("Reminder marked as sent.")
+                    print(
+                        f"Reminder processed successfully: "
+                        f"{reminder.title}"
+                    )
 
                 else:
                     db.rollback()
                     print(
-                        f"Email failed for reminder: {reminder.title}. "
-                        "It will be retried during the next check."
+                        f"Reminder email failed: {reminder.title}. "
+                        "Will retry."
                     )
 
-                print("===========================================\n")
-
             except Exception as error:
-
                 db.rollback()
-
                 print(
                     f"Error processing reminder "
-                    f"'{reminder.title}': {error}"
+                    f"{reminder.id}: {error}"
                 )
 
-                # Continue processing other reminders
-                continue
-
     except Exception as error:
-
-        db.rollback()
         print("Reminder checker error:", error)
 
     finally:

@@ -1,4 +1,4 @@
-
+from sqlalchemy import Date
 from sqlalchemy import (
     Column,
     Integer,
@@ -189,8 +189,11 @@ class Reminder(Base):
     title = Column(String(255), nullable=False)
 
     description = Column(Text, nullable=True)
-
     remind_at = Column(DateTime, nullable=False)
+
+# Recurring reminder details
+    recurrence = Column(String(20), nullable=True, default=None)
+    recurrence_end_date = Column(Date, nullable=True)
 
     is_sent = Column(Boolean, default=False, nullable=False)
 

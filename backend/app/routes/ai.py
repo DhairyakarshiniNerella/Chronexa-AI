@@ -2,12 +2,9 @@
 import os
 import json
 import re
+import calendar
 
-from datetime import datetime, date, time
-from unittest import result
-from unittest import result
-from urllib import request
-from httpx import request
+from datetime import datetime, date, time, timedelta
 
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,8 +24,10 @@ router = APIRouter(
 
 # Temporary conversation storage for each logged-in user
 pending_conversations = {}
-# Stores pending update/delete confirmations and duplicate selections
+
+# Stores pending update/delete confirmations and selections
 pending_actions = {}
+
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
@@ -59,7 +58,9 @@ SKIP_WORDS = {
 }
 
 
-# Normalize task status
+# ==========================================
+# GENERAL HELPERS
+# ==========================================
 
 def normalize_status(value):
 
@@ -70,6 +71,107 @@ def normalize_status(value):
         value = value.value
 
     return str(value).split(".")[-1].lower().replace("_", " ")
+
+
+def convert_datetime(date_value, time_value):
+
+    try:
+
+        if isinstance(date_value, datetime):
+            parsed_date = date_value.date()
+
+        elif isinstance(date_value, date):
+            parsed_date = date_value
+
+        else:
+            parsed_date = date.fromisoformat(
+                str(date_value).strip()
+            )
+
+        if isinstance(time_value, datetime):
+            parsed_time = time_value.time()
+
+        elif isinstance(time_value, time):
+            parsed_time = time_value
+
+        else:
+
+            time_text = str(time_value).strip()
+
+            try:
+                parsed_time = time.fromisoformat(time_text)
+
+            except ValueError:
+                parsed_time = datetime.strptime(
+                    time_text.upper(),
+                    "%I:%M %p"
+                ).time()
+
+        return datetime.combine(
+            parsed_date,
+            parsed_time
+        )
+
+    except (ValueError, TypeError, AttributeError):
+
+        print("INVALID DATE VALUE:", repr(date_value))
+        print("INVALID TIME VALUE:", repr(time_value))
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date or time. Please provide valid values."
+        )
+
+
+# Calculate the end date for a recurring reminder.
+# The end date is inclusive.
+
+def calculate_recurrence_end_date(start_date, duration):
+
+    duration_text = str(duration).strip().lower()
+
+    duration_text = re.sub(
+        r"^for\s+",
+        "",
+        duration_text
+    ).strip()
+
+    month_count = None
+
+    if duration_text in {
+        "1 month",
+        "one month",
+        "a month",
+        "month"
+    }:
+        month_count = 1
+
+    elif duration_text in {
+        "2 months",
+        "two months"
+    }:
+        month_count = 2
+
+    if month_count is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "I couldn't understand that reminder duration. "
+                "Please provide a specific end date."
+            )
+        )
+
+    year = start_date.year
+    month = start_date.month + month_count
+
+    while month > 12:
+        month -= 12
+        year += 1
+
+    last_day = calendar.monthrange(year, month)[1]
+    day = min(start_date.day, last_day)
+
+    return date(year, month, day)
 
 
 # ==========================================
@@ -89,16 +191,24 @@ ACTION_INTENTS = {
 
 
 def get_entity_model(entity_type):
+
     models = {
         "task": Task,
         "schedule": Schedule,
         "reminder": Reminder,
         "note": Note
     }
+
     return models[entity_type]
 
 
-def find_matching_records(db, user_id, entity_type, target_title):
+def find_matching_records(
+    db,
+    user_id,
+    entity_type,
+    target_title
+):
+
     model = get_entity_model(entity_type)
 
     records = db.query(model).filter(
@@ -121,7 +231,13 @@ def find_matching_records(db, user_id, entity_type, target_title):
     ]
 
 
-def get_record_by_id(db, user_id, entity_type, record_id):
+def get_record_by_id(
+    db,
+    user_id,
+    entity_type,
+    record_id
+):
+
     model = get_entity_model(entity_type)
 
     return db.query(model).filter(
@@ -131,6 +247,7 @@ def get_record_by_id(db, user_id, entity_type, record_id):
 
 
 def format_matching_records(records, entity_type):
+
     lines = ["I found multiple matching records:"]
 
     for index, record in enumerate(records, 1):
@@ -139,12 +256,15 @@ def format_matching_records(records, entity_type):
         )
 
     lines.append("")
-    lines.append("Please reply with the number of the record you mean.")
+    lines.append(
+        "Please reply with the number of the record you mean."
+    )
 
     return "\n".join(lines)
 
 
 def get_update_changes(fields):
+
     allowed_fields = [
         "updated_title",
         "description",
@@ -170,6 +290,7 @@ def apply_record_update(
     record,
     changes
 ):
+
     if not changes:
         return (
             "What would you like me to change? "
@@ -178,6 +299,7 @@ def apply_record_update(
         )
 
     try:
+
         new_title = changes.get("updated_title")
 
         if new_title:
@@ -187,12 +309,14 @@ def apply_record_update(
             record.description = changes["description"]
 
         if entity_type == "note":
+
             if "content" in changes:
                 record.content = changes["content"]
 
         elif entity_type == "task":
 
             if "status" in changes:
+
                 requested_status = normalize_status(
                     changes["status"]
                 )
@@ -215,7 +339,9 @@ def apply_record_update(
             reminder = record.reminder
 
             time_fields = {
-                "date", "start_time", "end_time"
+                "date",
+                "start_time",
+                "end_time"
             }
 
             if time_fields.intersection(changes):
@@ -281,7 +407,11 @@ def apply_record_update(
 
         elif entity_type == "schedule":
 
-            if "date" in changes or "start_time" in changes or "end_time" in changes:
+            if (
+                "date" in changes
+                or "start_time" in changes
+                or "end_time" in changes
+            ):
 
                 selected_date = changes.get(
                     "date",
@@ -324,11 +454,14 @@ def apply_record_update(
                 record.end_time = new_end
 
             # Keep linked records synchronized.
+
             if record.task:
+
                 record.task.title = record.title
                 record.task.description = record.description
 
                 if record.task.reminder:
+
                     record.task.reminder.title = record.title
                     record.task.reminder.description = record.description
 
@@ -356,6 +489,7 @@ def apply_record_update(
             record.is_sent = False
 
             if record.task:
+
                 record.task.title = record.title
                 record.task.description = record.description
 
@@ -386,14 +520,16 @@ def begin_ai_action(
     intent,
     fields
 ):
+
     entity_type = ACTION_INTENTS[intent]
 
     is_delete = intent.startswith("delete_")
+    changes = get_update_changes(fields)
 
     target_title = fields.get("target_title")
 
-    
     if not target_title:
+
         pending_actions[user_id] = {
             "stage": "identify_target",
             "action": "delete" if is_delete else "update",
@@ -409,9 +545,6 @@ def begin_ai_action(
             ),
             "pending": True
         }
-
-
-    changes = get_update_changes(fields)
 
     if not is_delete and not changes:
         return {
@@ -439,6 +572,7 @@ def begin_ai_action(
         }
 
     if len(records) > 1:
+
         pending_actions[user_id] = {
             "stage": "select",
             "action": "delete" if is_delete else "update",
@@ -458,6 +592,7 @@ def begin_ai_action(
     record = records[0]
 
     if is_delete:
+
         pending_actions[user_id] = {
             "stage": "confirm_delete",
             "entity_type": entity_type,
@@ -490,6 +625,7 @@ def begin_ai_action(
 
 
 def handle_pending_action(db, user_id, message):
+
     pending = pending_actions.get(user_id)
 
     if not pending:
@@ -497,7 +633,10 @@ def handle_pending_action(db, user_id, message):
 
     text = message.strip().casefold()
 
+    # Identify the record to update or delete.
+
     if pending["stage"] == "identify_target":
+
         entity_type = pending["entity_type"]
         action = pending["action"]
         changes = pending["changes"]
@@ -521,6 +660,7 @@ def handle_pending_action(db, user_id, message):
             }
 
         if len(records) > 1:
+
             pending_actions[user_id] = {
                 "stage": "select",
                 "action": action,
@@ -530,13 +670,17 @@ def handle_pending_action(db, user_id, message):
             }
 
             return {
-                "reply": format_matching_records(records, entity_type),
+                "reply": format_matching_records(
+                    records,
+                    entity_type
+                ),
                 "pending": True
             }
 
         record = records[0]
 
         if action == "delete":
+
             pending_actions[user_id] = {
                 "stage": "confirm_delete",
                 "entity_type": entity_type,
@@ -570,9 +714,16 @@ def handle_pending_action(db, user_id, message):
         }
 
     # Handle delete confirmation.
+
     if pending["stage"] == "confirm_delete":
 
-        if text in {"yes", "y", "confirm", "yes delete", "confirm delete"}:
+        if text in {
+            "yes",
+            "y",
+            "confirm",
+            "yes delete",
+            "confirm delete"
+        }:
 
             record = get_record_by_id(
                 db,
@@ -582,7 +733,9 @@ def handle_pending_action(db, user_id, message):
             )
 
             if not record:
+
                 pending_actions.pop(user_id, None)
+
                 return {
                     "reply": "That record no longer exists.",
                     "pending": False
@@ -591,8 +744,10 @@ def handle_pending_action(db, user_id, message):
             title = record.title
 
             try:
+
                 db.delete(record)
                 db.commit()
+
                 pending_actions.pop(user_id, None)
 
                 return {
@@ -605,7 +760,14 @@ def handle_pending_action(db, user_id, message):
                 db.rollback()
                 raise
 
-        if text in {"no", "n", "cancel", "don't delete", "do not delete"}:
+        if text in {
+            "no",
+            "n",
+            "cancel",
+            "don't delete",
+            "do not delete"
+        }:
+
             pending_actions.pop(user_id, None)
 
             return {
@@ -622,6 +784,7 @@ def handle_pending_action(db, user_id, message):
         }
 
     # Handle duplicate-title selection.
+
     if pending["stage"] == "select":
 
         selection_words = {
@@ -638,8 +801,11 @@ def handle_pending_action(db, user_id, message):
 
         if number_match:
             selected_number = int(number_match.group(1))
+
         else:
+
             for word, number in selection_words.items():
+
                 if word in text:
                     selected_number = number
                     break
@@ -651,6 +817,7 @@ def handle_pending_action(db, user_id, message):
             or selected_number < 1
             or selected_number > len(record_ids)
         ):
+
             return {
                 "reply": (
                     "Please select a valid record number "
@@ -669,6 +836,7 @@ def handle_pending_action(db, user_id, message):
         )
 
         if not record:
+
             pending_actions.pop(user_id, None)
 
             return {
@@ -681,6 +849,7 @@ def handle_pending_action(db, user_id, message):
         changes = pending["changes"]
 
         if action == "delete":
+
             pending_actions[user_id] = {
                 "stage": "confirm_delete",
                 "entity_type": entity_type,
@@ -715,9 +884,10 @@ def handle_pending_action(db, user_id, message):
 
     return None
 
-# Detect note retrieval directly using Python.
-# This prevents Groq from incorrectly classifying
-# note retrieval requests as out_of_scope.
+
+# ==========================================
+# NOTE RETRIEVAL
+# ==========================================
 
 def detect_note_listing(message):
 
@@ -741,8 +911,6 @@ def detect_note_listing(message):
 
     if not action_words and not note_question:
         return None
-
-    # Try to identify a specific note title.
 
     title = None
 
@@ -792,9 +960,16 @@ def detect_note_listing(message):
     }
 
 
-# Ask Groq to understand the user's message
+# ==========================================
+# GROQ MESSAGE UNDERSTANDING
+# ==========================================
 
-def understand_message(client, message, pending, context):
+def understand_message(
+    client,
+    message,
+    pending,
+    context
+):
 
     today = date.today().isoformat()
 
@@ -842,11 +1017,15 @@ Return ONLY valid JSON:
         "start_time": null,
         "end_time": null,
         "remind_time": null,
-        "status": null
+        "status": null,
+        "recurrence": null,
+        "recurrence_end_date": null,
+        "recurrence_duration": null
     }}
 }}
 
 Rules:
+
 - Date must be YYYY-MM-DD.
 - Times must be HH:MM in 24-hour format.
 - Convert 9:50 PM to 21:50.
@@ -856,7 +1035,14 @@ Rules:
 - Map starting times to start_time.
 - Map ending times to end_time.
 - Resolve today, tomorrow and weekdays.
-- Do not invent missing information.
+- Extract recurrence, recurrence_end_date and recurrence_duration
+  when the user provides them.
+- "Every day", "daily" and "each day" mean recurrence "daily".
+- "For one month" or "for a month" means recurrence_duration "1 month".
+- "For two months" means recurrence_duration "2 months".
+- "Until December 17" means extract the exact end date.
+- Do not invent recurrence details.
+- Preserve previously collected information.
 - Do not interpret unrelated questions as field values.
 """
 
@@ -908,14 +1094,17 @@ Return ONLY valid JSON:
         "start_time": null,
         "end_time": null,
         "remind_time": null,
-        "status": null
+        "status": null,
         "target_title": null,
         "updated_title": null,
+        "recurrence": null,
+        "recurrence_end_date": null,
+        "recurrence_duration": null
     }},
     "reply": ""
 }}
 
-Rules:
+General rules:
 
 - Extract all information already provided.
 - Date must be YYYY-MM-DD.
@@ -924,6 +1113,28 @@ Rules:
 - Convert 10 AM to 10:00.
 - Do not invent missing information.
 - Only handle Chronexa productivity-related requests.
+
+Creation rules:
+
+- Extract the title and description from the user's message.
+- For tasks and schedules, extract date, start_time and end_time.
+- For reminders, extract date and remind_time.
+- For notes, extract title and content.
+- If a description is not provided, leave it null.
+- Do not invent a description.
+
+Recurring reminder rules:
+
+- "Every day", "daily" or "each day" means recurrence "daily".
+- "For one month" or "for a month" means recurrence_duration "1 month".
+- "For two months" means recurrence_duration "2 months".
+- "Until December 17" means extract the exact date into recurrence_end_date.
+- Extract the recurrence start date into date.
+- Extract the reminder time into remind_time.
+- One-time reminders must have recurrence null.
+- Do not invent an end date when the duration is not provided.
+- Do not classify a normal one-time reminder as recurring.
+- Recurrence is currently supported only for reminders.
 
 Listing rules:
 
@@ -943,6 +1154,7 @@ Listing rules:
 - If no status filter is requested, leave status null.
 - Apply task status filtering to tasks and schedules.
 - Do not apply task status filtering to reminders or notes.
+
 Update and delete rules:
 
 - "Update my task..." -> update_task.
@@ -957,10 +1169,11 @@ Update and delete rules:
 - Put a replacement title in updated_title.
 - Put the new description in description.
 - Put the new note text in content.
-- Put the requested new status in status.
+- Put the new requested status in status.
 - Extract new dates and times when requested.
 - Never invent a target title or changes.
 - Do not classify a request to update or delete as a creation request.
+
 Project question rules:
 
 - Answer questions about Chronexa AI and its features.
@@ -986,7 +1199,9 @@ Project question rules:
     return result
 
 
-# Check which required fields are missing
+# ==========================================
+# REQUIRED FIELD CHECKING
+# ==========================================
 
 def get_missing_fields(intent, fields):
 
@@ -1002,27 +1217,45 @@ def get_missing_fields(intent, fields):
                 missing.append(field)
 
         elif value is None or value == "":
-
             missing.append(field)
+
+    # A daily reminder must have an end date or duration.
+
+    if intent == "reminder" and fields.get("recurrence") == "daily":
+
+        if (
+            not fields.get("recurrence_end_date")
+            and not fields.get("recurrence_duration")
+        ):
+            missing.append("recurrence_end_date")
 
     return missing
 
-
-# Ask for missing information
 
 def ask_for_missing_detail(field):
 
     questions = {
         "title": "What should I name it?",
+
         "description": (
             "Please provide a description. "
             "You can also say 'Skip' if you don't need one."
         ),
+
         "date": "Which date should I schedule it for?",
+
         "start_time": "What is the starting time?",
+
         "end_time": "What is the ending time?",
+
         "remind_time": "What time should I remind you?",
-        "content": "What would you like to write in your note?"
+
+        "content": "What would you like to write in your note?",
+
+        "recurrence_end_date": (
+            "Until which date should I send this daily reminder? "
+            "You can also say 'for one month' or 'for two months'."
+        )
     }
 
     return questions.get(
@@ -1031,63 +1264,20 @@ def ask_for_missing_detail(field):
     )
 
 
-# Convert date and time into datetime
+# ==========================================
+# SAVE CREATION REQUESTS
+# ==========================================
 
-def convert_datetime(date_value, time_value):
+def save_request(
+    intent,
+    fields,
+    db,
+    user_id
+):
 
-    try:
-
-        if isinstance(date_value, datetime):
-            parsed_date = date_value.date()
-
-        elif isinstance(date_value, date):
-            parsed_date = date_value
-
-        else:
-            parsed_date = date.fromisoformat(
-                str(date_value).strip()
-            )
-
-        if isinstance(time_value, datetime):
-            parsed_time = time_value.time()
-
-        elif isinstance(time_value, time):
-            parsed_time = time_value
-
-        else:
-
-            time_text = str(time_value).strip()
-
-            try:
-
-                parsed_time = time.fromisoformat(time_text)
-
-            except ValueError:
-
-                parsed_time = datetime.strptime(
-                    time_text.upper(),
-                    "%I:%M %p"
-                ).time()
-
-        return datetime.combine(
-            parsed_date,
-            parsed_time
-        )
-
-    except (ValueError, TypeError, AttributeError):
-
-        print("INVALID DATE VALUE:", repr(date_value))
-        print("INVALID TIME VALUE:", repr(time_value))
-
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid date or time. Please provide valid values."
-        )
-
-
-# Save completed requests directly into MySQL
-
-def save_request(intent, fields, db, user_id):
+    # --------------------------------------
+    # CREATE TASK OR SCHEDULE
+    # --------------------------------------
 
     if intent in ["task", "schedule"]:
 
@@ -1179,6 +1369,10 @@ def save_request(intent, fields, db, user_id):
             f"Schedule '{new_schedule.title}' created successfully!"
         )
 
+    # --------------------------------------
+    # CREATE ONE-TIME OR DAILY REMINDER
+    # --------------------------------------
+
     if intent == "reminder":
 
         remind_at = convert_datetime(
@@ -1186,20 +1380,87 @@ def save_request(intent, fields, db, user_id):
             fields["remind_time"]
         )
 
+        recurrence = fields.get("recurrence")
+        recurrence_end_date = None
+
+        if recurrence == "daily":
+
+            if fields.get("recurrence_end_date"):
+
+                try:
+
+                    recurrence_end_date = date.fromisoformat(
+                        str(fields["recurrence_end_date"])
+                    )
+
+                except (ValueError, TypeError):
+
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid recurrence end date."
+                    )
+
+            elif fields.get("recurrence_duration"):
+
+                recurrence_end_date = calculate_recurrence_end_date(
+                    remind_at.date(),
+                    fields["recurrence_duration"]
+                )
+
+            # Defensive validation.
+
+            if recurrence_end_date is None:
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Please provide an end date or duration "
+                        "for your daily reminder."
+                    )
+                )
+
+            if recurrence_end_date < remind_at.date():
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "End date cannot be before the reminder "
+                        "start date."
+                    )
+                )
+
         new_reminder = Reminder(
             user_id=user_id,
             title=fields["title"],
             description=fields.get("description") or None,
             remind_at=remind_at,
+            recurrence=recurrence,
+            recurrence_end_date=recurrence_end_date,
             is_sent=False
         )
 
         db.add(new_reminder)
         db.commit()
+        db.refresh(new_reminder)
+
+        if recurrence == "daily":
+
+            return (
+                f"Daily reminder '{new_reminder.title}' "
+                "created successfully!\n"
+                f"First reminder: "
+                f"{remind_at.strftime('%d %B %Y, %I:%M %p')}\n"
+                f"Last reminder: "
+                f"{recurrence_end_date.strftime('%d %B %Y')}"
+            )
 
         return (
             f"Reminder '{new_reminder.title}' created successfully!"
         )
+
+    # --------------------------------------
+    # CREATE NOTE
+    # --------------------------------------
 
     if intent == "note":
 
@@ -1217,17 +1478,21 @@ def save_request(intent, fields, db, user_id):
         )
 
 
-# Retrieve notes from MySQL
+# ==========================================
+# LIST NOTES
+# ==========================================
 
-def list_notes(db, user_id, title=None):
+def list_notes(
+    db,
+    user_id,
+    title=None
+):
 
     query = db.query(Note).filter(
         Note.user_id == user_id
     )
 
     notes = query.order_by(Note.id.desc()).all()
-
-    # Match a specific note title if requested.
 
     if title:
 
@@ -1267,7 +1532,9 @@ def list_notes(db, user_id, title=None):
     return "\n".join(response)
 
 
-# List tasks, schedules, reminders and notes from MySQL
+# ==========================================
+# LIST PRODUCTIVITY RECORDS
+# ==========================================
 
 def list_productivity(
     intent,
@@ -1288,7 +1555,6 @@ def list_productivity(
             )
 
         except ValueError:
-
             return "I couldn't understand the requested date."
 
     # Retrieve only the logged-in user's records.
@@ -1374,12 +1640,12 @@ def list_productivity(
 
                 response.append(
                     f"{index}. {task.title}\n"
-                    f"   Description: {task.description or 'Not provided'}\n"
+                    f"   Description: "
+                    f"{task.description or 'Not provided'}\n"
                     f"   Status: {task.status}"
                 )
 
         else:
-
             response.append("No tasks found.")
 
         response.append("")
@@ -1397,13 +1663,15 @@ def list_productivity(
 
                 response.append(
                     f"{index}. {schedule.title}\n"
-                    f"   Description: {schedule.description or 'Not provided'}\n"
-                    f"   Start: {schedule.start_time.strftime('%d %b %Y, %I:%M %p')}\n"
-                    f"   End: {schedule.end_time.strftime('%I:%M %p')}"
+                    f"   Description: "
+                    f"{schedule.description or 'Not provided'}\n"
+                    f"   Start: "
+                    f"{schedule.start_time.strftime('%d %b %Y, %I:%M %p')}\n"
+                    f"   End: "
+                    f"{schedule.end_time.strftime('%I:%M %p')}"
                 )
 
         else:
-
             response.append("No schedules found.")
 
         response.append("")
@@ -1419,14 +1687,31 @@ def list_productivity(
 
             for index, reminder in enumerate(reminders, 1):
 
-                response.append(
-                    f"{index}. {reminder.title}\n"
-                    f"   Description: {reminder.description or 'Not provided'}\n"
-                    f"   Time: {reminder.remind_at.strftime('%d %b %Y, %I:%M %p')}"
+                recurrence_label = (
+                    "Daily"
+                    if reminder.recurrence == "daily"
+                    else "One-time"
                 )
 
-        else:
+                response.append(
+                    f"{index}. {reminder.title}\n"
+                    f"   Description: "
+                    f"{reminder.description or 'Not provided'}\n"
+                    f"   Time: "
+                    f"{reminder.remind_at.strftime('%d %b %Y, %I:%M %p')}\n"
+                    f"   Type: {recurrence_label}"
+                )
 
+                if (
+                    reminder.recurrence == "daily"
+                    and reminder.recurrence_end_date
+                ):
+                    response.append(
+                        f"   Last date: "
+                        f"{reminder.recurrence_end_date.strftime('%d %b %Y')}"
+                    )
+
+        else:
             response.append("No reminders found.")
 
         response.append("")
@@ -1448,7 +1733,6 @@ def list_productivity(
                 )
 
         else:
-
             response.append("No notes found.")
 
         response.append("")
@@ -1456,7 +1740,9 @@ def list_productivity(
     return "\n".join(response)
 
 
-# Chat endpoint
+# ==========================================
+# CHAT ENDPOINT
+# ==========================================
 
 @router.post("/chat")
 def chat_with_ai(
@@ -1522,7 +1808,11 @@ def chat_with_ai(
                 {
                     "title": reminder.title,
                     "remind_at": str(reminder.remind_at),
-                    "is_sent": reminder.is_sent
+                    "is_sent": reminder.is_sent,
+                    "recurrence": reminder.recurrence,
+                    "recurrence_end_date": str(
+                        reminder.recurrence_end_date
+                    ) if reminder.recurrence_end_date else None
                 }
                 for reminder in reminders
             ],
@@ -1536,10 +1826,12 @@ def chat_with_ai(
             ]
         }
 
-        # Check for an unfinished request.
+        # Check for an unfinished creation request.
 
         pending = pending_conversations.get(user_id)
+
         # Handle an existing update/delete confirmation or selection.
+
         pending_action_result = handle_pending_action(
             db,
             user_id,
@@ -1547,9 +1839,10 @@ def chat_with_ai(
         )
 
         if pending_action_result is not None:
-             return pending_action_result
-        
+            return pending_action_result
+
         # Give new update/delete requests priority over pending creation.
+
         action_words = re.search(
             r"\b(delete|remove|update|edit|change)\b",
             request.message,
@@ -1557,6 +1850,7 @@ def chat_with_ai(
         )
 
         if pending and action_words:
+
             new_action_result = understand_message(
                 client,
                 request.message,
@@ -1567,6 +1861,7 @@ def chat_with_ai(
             new_intent = new_action_result.get("intent")
 
             if new_intent in ACTION_INTENTS:
+
                 pending_conversations.pop(user_id, None)
 
                 return begin_ai_action(
@@ -1576,11 +1871,7 @@ def chat_with_ai(
                     new_action_result.get("fields", {})
                 )
 
-        
         # Detect note retrieval directly before calling Groq.
-
-        # This avoids incorrect out_of_scope classification
-        # for requests such as "Show me my Python Revision note".
 
         if not pending:
 
@@ -1662,37 +1953,41 @@ def chat_with_ai(
                 if value is not None:
 
                     if value != "" or key == "description":
-
                         fields[key] = value
 
             intent = pending["intent"]
 
-        
         else:
+
             intent = result.get("intent")
 
             # Handle AI update and delete requests.
+
             if intent in ACTION_INTENTS:
+
                 action_result = begin_ai_action(
                     db,
                     user_id,
                     intent,
                     result.get("fields", {})
                 )
+
                 return action_result
 
             # Handle unrelated requests.
+
             if intent == "out_of_scope":
+
                 return {
                     "reply": (
                         "I'm Chronexa AI, your personal productivity "
                         "assistant. I can help with tasks, schedules, "
                         "reminders and notes."
-                    )
+                    ),
+                    "pending": False
                 }
 
-            
-           
+            # Handle Chronexa project questions.
 
             if intent == "project_question":
 
@@ -1700,7 +1995,8 @@ def chat_with_ai(
                     "reply": result.get(
                         "reply",
                         "I can help you manage your productivity."
-                    )
+                    ),
+                    "pending": False
                 }
 
             # Handle listing requests.
@@ -1756,7 +2052,8 @@ def chat_with_ai(
                     "reply": (
                         "I can help you create tasks, schedules, "
                         "reminders and notes. What would you like to do?"
-                    )
+                    ),
+                    "pending": False
                 }
 
             intent = intent_map[intent]
@@ -1768,7 +2065,10 @@ def chat_with_ai(
         if intent not in REQUIRED_FIELDS:
 
             return {
-                "reply": "Please tell me what you would like to create."
+                "reply": (
+                    "Please tell me what you would like to create."
+                ),
+                "pending": False
             }
 
         # Check for missing information.
@@ -1819,7 +2119,7 @@ def chat_with_ai(
         db.rollback()
 
         print(
-            "CHRONEXA HTTP ERROR:",
+            "CHRONEX HTTP ERROR:",
             e.status_code,
             e.detail
         )
@@ -1831,7 +2131,7 @@ def chat_with_ai(
         db.rollback()
 
         print(
-            "CHRONEXA AI ERROR:",
+            "CHRONEX AI ERROR:",
             repr(e)
         )
 
