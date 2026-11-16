@@ -1,4 +1,5 @@
-# Python virtual environment
+
+# Python virtual environments
 venv/
 .venv/
 env/
@@ -33,19 +34,3 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Environment variables and secrets
-.env
-.env.*
-!.env.example
-
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-
-# IDE and operating system
-.vscode/
-.idea/
-.DS_Store

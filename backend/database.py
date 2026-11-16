@@ -1,10 +1,11 @@
+
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.engine import URL
 
-# Load environment variables
+# Load local environment variables
 load_dotenv()
 
 # Read database credentials
@@ -20,7 +21,8 @@ DATABASE_URL = URL.create(
 # Create database engine
 engine = create_engine(
     DATABASE_URL,
-    echo=True
+    echo=os.getenv("SQL_ECHO", "false").lower() == "true",
+    pool_pre_ping=True
 )
 
 # Create database sessions
@@ -32,6 +34,7 @@ SessionLocal = sessionmaker(
 
 # Base class for database models
 Base = declarative_base()
+
 
 # Database session dependency
 def get_db():
