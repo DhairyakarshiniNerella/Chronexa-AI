@@ -1,6 +1,6 @@
 
 from datetime import datetime, timedelta
-
+from zoneinfo import ZoneInfo
 from database import SessionLocal
 from models import Reminder
 from app.email_service import send_reminder_email
@@ -11,7 +11,9 @@ def check_due_reminders():
     db = SessionLocal()
 
     try:
-        current_time = datetime.now()
+        current_time = datetime.now(
+            ZoneInfo("Asia/Kolkata")
+        ).replace(tzinfo=None)
 
         # Find reminders that are due and have not been sent
         due_reminders = db.query(Reminder).filter(
