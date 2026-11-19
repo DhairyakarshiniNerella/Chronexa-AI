@@ -2363,6 +2363,8 @@ if (aiChatInput) {
         }
     });
 }
+
+
 // =============================================
 // CHRONEXA AI - SIDEBAR NAVIGATION
 // =============================================
@@ -2373,8 +2375,12 @@ document.addEventListener("DOMContentLoaded", function () {
         ".sidebar .nav-link"
     );
 
+    const calendarSection = document.getElementById(
+        "calendarSection"
+    );
+
     const sidebarTargets = {
-        "Overview": ".welcome-section",
+        "Overview": ".hero-card",
         "My Tasks": ".tasks-card",
         "Schedules": ".schedule-card",
         "My Notes": ".notes-card",
@@ -2382,10 +2388,26 @@ document.addEventListener("DOMContentLoaded", function () {
         "AI Assistant": "#aiAssistant"
     };
 
-    // Handle sidebar navigation
+    function updateActiveLink(selectedLink, label) {
+
+        sidebarLinks.forEach(function (link) {
+            link.classList.remove("active");
+        });
+
+        selectedLink.classList.add("active");
+
+        const breadcrumbTitle = document.querySelector(
+            ".breadcrumb strong"
+        );
+
+        if (breadcrumbTitle) {
+            breadcrumbTitle.textContent = label;
+        }
+    }
+
     sidebarLinks.forEach(function (link) {
 
-        link.addEventListener("click", function (event) {
+        link.addEventListener("click", async function (event) {
 
             event.preventDefault();
 
@@ -2397,12 +2419,29 @@ document.addEventListener("DOMContentLoaded", function () {
                 ? labelElement.textContent.trim()
                 : "";
 
-            // Settings is not implemented yet
-            if (label === "Settings") {
-                showToast(
-                    "Settings will be available in a future update."
-                );
+            // Open Calendar
+            if (label === "Calendar") {
+
+                if (calendarSection) {
+
+                    calendarSection.style.display = "block";
+
+                    calendarSection.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start"
+                    });
+
+                    updateActiveLink(link, label);
+
+                    await loadCalendarSchedules();
+                }
+
                 return;
+            }
+
+            // Hide Calendar when opening another section
+            if (calendarSection) {
+                calendarSection.style.display = "none";
             }
 
             const targetSelector = sidebarTargets[label];
@@ -2413,33 +2452,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (!target) {
                 showToast(
-                    "This section is not available yet.",
+                    "Unable to open this section.",
                     "error"
                 );
                 return;
             }
 
-            // Scroll to the selected section
             target.scrollIntoView({
                 behavior: "smooth",
                 block: "start"
             });
 
-            // Update active sidebar item
-            sidebarLinks.forEach(function (item) {
-                item.classList.remove("active");
-            });
-
-            link.classList.add("active");
-
-            // Update breadcrumb
-            const breadcrumbTitle = document.querySelector(
-                ".breadcrumb strong"
-            );
-
-            if (breadcrumbTitle) {
-                breadcrumbTitle.textContent = label;
-            }
+            updateActiveLink(link, label);
 
         });
 
@@ -2450,38 +2474,37 @@ document.addEventListener("DOMContentLoaded", function () {
         ".upgrade-btn"
     );
 
-    const aiAssistant = document.getElementById(
-        "aiAssistant"
-    );
-
-    if (exploreAIButton && aiAssistant) {
+    if (exploreAIButton) {
 
         exploreAIButton.addEventListener("click", function () {
 
-            aiAssistant.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-
-            const aiLink = Array.from(sidebarLinks).find(
-                function (link) {
-
-                    const label = link.querySelector(
-                        "span:nth-child(2)"
-                    );
-
-                    return label &&
-                        label.textContent.trim() === "AI Assistant";
-                }
+            const aiAssistant = document.getElementById(
+                "aiAssistant"
             );
 
-            if (aiLink) {
+            if (aiAssistant) {
 
-                sidebarLinks.forEach(function (item) {
-                    item.classList.remove("active");
+                aiAssistant.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
                 });
 
-                aiLink.classList.add("active");
+                const aiLink = Array.from(sidebarLinks).find(
+                    function (link) {
+
+                        const label = link.querySelector(
+                            "span:nth-child(2)"
+                        );
+
+                        return label &&
+                            label.textContent.trim() === "AI Assistant";
+                    }
+                );
+
+                if (aiLink) {
+                    updateActiveLink(aiLink, "AI Assistant");
+                }
+
             }
 
         });
@@ -2489,6 +2512,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 });
+
 
 
 // =========================================
