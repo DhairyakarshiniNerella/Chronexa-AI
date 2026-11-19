@@ -302,6 +302,7 @@ if (dashboard) {
 // =============================================
 
 let editingTaskId = null;
+let editingTaskCompleted = false;
 
 
 // =============================================
@@ -330,29 +331,12 @@ const openTaskButtons = document.querySelectorAll(
     ".primary-btn, .tasks-card .small-create-btn"
 );
 
-openTaskButtons.forEach(button => {
 
-    button.addEventListener("click", function () {
-
-        editingTaskId = null;
-
-        taskForm.reset();
-
-        taskModal.querySelector("h2").textContent = "Create a New Task ✦";
-
-        saveTaskButton.textContent = "+ Create Task";
-
-        taskModal.style.display = "flex";
-
-    });
-
-});
 
 
 // =============================================
 // CLOSE TASK POPUP
 // =============================================
-
 function closeTaskModal() {
 
     taskModal.style.display = "none";
@@ -360,6 +344,7 @@ function closeTaskModal() {
     taskForm.reset();
 
     editingTaskId = null;
+    editingTaskCompleted = false;
 
 }
 
@@ -694,17 +679,17 @@ taskForm.addEventListener("submit", async function (event) {
     }
 
     const taskData = isEditing
-        ? {
-            title: title,
-            description: description,
-            completed: false
-        }
-        : {
-            title: title,
-            description: description,
-            start_time: `${taskDate}T${startTime}:00`,
-            end_time: `${taskDate}T${endTime}:00`
-        };
+    ? {
+        title: title,
+        description: description,
+        completed: editingTaskCompleted
+    }
+    : {
+        title: title,
+        description: description,
+        start_time: `${taskDate}T${startTime}:00`,
+        end_time: `${taskDate}T${endTime}:00`
+    };
 
     try {
 
@@ -761,11 +746,15 @@ function openEditTask(task) {
 
     editingTaskId = task.id;
 
+    // Preserve the existing completion status
+    editingTaskCompleted = Boolean(task.completed);
+
     taskTitleInput.value = task.title;
 
     taskDescriptionInput.value = task.description || "";
 
-    taskModal.querySelector("h2").textContent = "Edit Your Task ✦";
+    taskModal.querySelector("h2").textContent =
+        "Edit Your Task ✦";
 
     saveTaskButton.textContent = "Save Changes";
 
