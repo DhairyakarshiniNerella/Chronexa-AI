@@ -327,9 +327,32 @@ const saveTaskButton = taskForm.querySelector(
 // OPEN TASK POPUP
 // =============================================
 
-const openTaskButtons = document.querySelectorAll(
-    ".primary-btn, .tasks-card .small-create-btn"
-);
+// Attach click events to all Add Task buttons
+openTaskButtons.forEach(button => {
+
+    button.addEventListener("click", function (event) {
+
+        event.preventDefault();
+
+        // Reset task editing mode
+        editingTaskId = null;
+        editingTaskCompleted = false;
+
+        // Clear the form
+        taskForm.reset();
+
+        // Set popup heading and button text
+        taskModal.querySelector("h2").textContent =
+            "Create a New Task ✦";
+
+        saveTaskButton.textContent = "+ Create Task";
+
+        // Open task popup
+        taskModal.style.display = "flex";
+
+    });
+
+});
 
 
 
