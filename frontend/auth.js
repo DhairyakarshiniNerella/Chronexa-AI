@@ -302,7 +302,6 @@ if (dashboard) {
 // =============================================
 
 let editingTaskId = null;
-let editingTaskCompleted = false;
 
 
 // =============================================
@@ -327,27 +326,22 @@ const saveTaskButton = taskForm.querySelector(
 // OPEN TASK POPUP
 // =============================================
 
-// Attach click events to all Add Task buttons
+const openTaskButtons = document.querySelectorAll(
+    ".primary-btn, .tasks-card .small-create-btn"
+);
+
 openTaskButtons.forEach(button => {
 
-    button.addEventListener("click", function (event) {
+    button.addEventListener("click", function () {
 
-        event.preventDefault();
-
-        // Reset task editing mode
         editingTaskId = null;
-        editingTaskCompleted = false;
 
-        // Clear the form
         taskForm.reset();
 
-        // Set popup heading and button text
-        taskModal.querySelector("h2").textContent =
-            "Create a New Task ✦";
+        taskModal.querySelector("h2").textContent = "Create a New Task ✦";
 
         saveTaskButton.textContent = "+ Create Task";
 
-        // Open task popup
         taskModal.style.display = "flex";
 
     });
@@ -355,11 +349,10 @@ openTaskButtons.forEach(button => {
 });
 
 
-
-
 // =============================================
 // CLOSE TASK POPUP
 // =============================================
+
 function closeTaskModal() {
 
     taskModal.style.display = "none";
@@ -367,7 +360,6 @@ function closeTaskModal() {
     taskForm.reset();
 
     editingTaskId = null;
-    editingTaskCompleted = false;
 
 }
 
@@ -702,17 +694,17 @@ taskForm.addEventListener("submit", async function (event) {
     }
 
     const taskData = isEditing
-    ? {
-        title: title,
-        description: description,
-        completed: editingTaskCompleted
-    }
-    : {
-        title: title,
-        description: description,
-        start_time: `${taskDate}T${startTime}:00`,
-        end_time: `${taskDate}T${endTime}:00`
-    };
+        ? {
+            title: title,
+            description: description,
+            completed: false
+        }
+        : {
+            title: title,
+            description: description,
+            start_time: `${taskDate}T${startTime}:00`,
+            end_time: `${taskDate}T${endTime}:00`
+        };
 
     try {
 
@@ -769,15 +761,11 @@ function openEditTask(task) {
 
     editingTaskId = task.id;
 
-    // Preserve the existing completion status
-    editingTaskCompleted = Boolean(task.completed);
-
     taskTitleInput.value = task.title;
 
     taskDescriptionInput.value = task.description || "";
 
-    taskModal.querySelector("h2").textContent =
-        "Edit Your Task ✦";
+    taskModal.querySelector("h2").textContent = "Edit Your Task ✦";
 
     saveTaskButton.textContent = "Save Changes";
 
